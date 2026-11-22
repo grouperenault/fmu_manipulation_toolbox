@@ -1,7 +1,7 @@
 ---
 name: fmu-container
 compatibility: Requires fmu-manipulation-toolbox 2.1a1 or later (pip install "fmu-manipulation-toolbox>=2.1a1").
-description: Assemble several FMUs (.fmu files) into one FMU container with the FMU Manipulation Toolbox - add FMUs, connect outputs to inputs, expose ports on the container interface, set start values and parameters, choose the container options (step size, multithreading, auto-linking), review and lint the assembly, then build the container FMU (FMI 2.0 or 3.0) or save its description as JSON or SSP. Also loads an existing JSON, CSV or SSP assembly file to edit it. Use when asked to combine, couple, wire or co-simulate FMUs together, to build an FMU container, or to edit or convert an assembly or an SSP file.
+description: Assemble several FMUs (.fmu files) into one FMU container with the FMU Manipulation Toolbox - add FMUs, connect outputs to inputs, expose ports on the container interface, set start values and parameters, choose the container options (step size, multithreading, auto-linking), review and lint the assembly, then build the container FMU (FMI-2 or FMI-3) or save its description as JSON or SSP. Also loads an existing JSON, CSV or SSP assembly file to edit it. Use when asked to combine, couple, wire or co-simulate FMUs together, to build an FMU container, or to edit or convert an assembly or an SSP file.
 ---
 
 # Build an FMU container
@@ -80,9 +80,9 @@ the `version` printed by `fmutool-agent list-tools`, if any) and upgrade it with
    ```
 
 6. **Build** once the user confirmed the path: `save_as_fmu`, with
-   `fmi_version` 2 or 3 for the interface of the container (an FMI 2 container
-   cannot expose the FMI 3 ports that have no FMI 2 type: prefer 3 when it
-   embeds FMI 3 FMUs, and report the ports the build log says it could not
+   `fmi_version` 2 or 3 for the interface of the container (an FMI-2 container
+   cannot expose the FMI-3 ports that have no FMI-2 type: prefer 3 when it
+   embeds FMI-3 FMUs, and report the ports the build log says it could not
    expose), `datalog` to record the exchanged values. `save_assembly` writes the
    description only, in the format of the extension of its path: `.json`, or
    `.ssp` with the FMUs embedded and the routing resolved (`ssp_version` `2.0`

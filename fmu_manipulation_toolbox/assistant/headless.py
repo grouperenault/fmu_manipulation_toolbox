@@ -317,7 +317,7 @@ class HeadlessAssemblyBridge:
         imported._geometry = {names[name]: box for name, box in root.fmu_geometry.items() if name in names}
         imported._experiment = (root.start_time, root.stop_time)
         self.__dict__.update(imported.__dict__)
-        logger.info(f"[AI] Imported '{root.name}' ({len(names)} FMU(s))")
+        logger.info(f"AI Assistant: '{root.name}' imported ({len(names)} FMU(s)).")
 
     def add_fmu(self, path: str) -> dict[str, Any]:
         fmu_path = Path(path)
@@ -327,7 +327,8 @@ class HeadlessAssemblyBridge:
 
         self._paths[name] = fmu_path
         self._descriptions[name] = description
-        logger.info(f"[AI] Added FMU '{name}'" + (f" (instance of '{fmu_path.name}')" if name != fmu_path.name else ""))
+        logger.info(f"AI Assistant: FMU '{name}' added"
+                    + (f" (instance of '{fmu_path.name}')." if name != fmu_path.name else "."))
 
         return {
             "fmu": name,
@@ -352,7 +353,7 @@ class HeadlessAssemblyBridge:
         self._geometry.pop(name, None)
         del self._paths[name]
         del self._descriptions[name]
-        logger.info(f"[AI] Removed FMU '{name}' ({len(removed)} link(s))")
+        logger.info(f"AI Assistant: FMU '{name}' removed ({len(removed)} link(s)).")
         return {"fmu": name, "removed_links": len(removed)}
 
     def add_link(self, from_fmu: str, from_port: str, to_fmu: str, to_port: str) -> str:
@@ -362,7 +363,7 @@ class HeadlessAssemblyBridge:
         if link not in self._links:
             self._links.append(link)
         description = f"{from_fmu}/{from_port} -> {to_fmu}/{to_port}"
-        logger.info(f"[AI] Linked {description}")
+        logger.info(f"AI Assistant: link '{from_fmu}/{from_port}' → '{to_fmu}/{to_port}' added.")
         return description
 
     def remove_link(self, from_fmu: str, from_port: str, to_fmu: str, to_port: str) -> str:
@@ -374,27 +375,27 @@ class HeadlessAssemblyBridge:
             )
         self._links.remove(link)
         description = f"{from_fmu}/{from_port} -> {to_fmu}/{to_port}"
-        logger.info(f"[AI] Unlinked {description}")
+        logger.info(f"AI Assistant: link '{from_fmu}/{from_port}' → '{to_fmu}/{to_port}' removed.")
         return description
 
     def expose_input(self, fmu: str, port: str) -> str:
         self._check_causality(fmu, port, ("input", "parameter"))
         if not any(item[:2] == (fmu, port) for item in self._exposed_inputs):
             self._exposed_inputs.append((fmu, port, port))
-        logger.info(f"[AI] Exposed input {fmu}/{port}")
+        logger.info(f"AI Assistant: input '{fmu}/{port}' exposed.")
         return f"{fmu}/{port}"
 
     def expose_output(self, fmu: str, port: str) -> str:
         self._check_causality(fmu, port, ("output",))
         if not any(item[:2] == (fmu, port) for item in self._exposed_outputs):
             self._exposed_outputs.append((fmu, port, port))
-        logger.info(f"[AI] Exposed output {fmu}/{port}")
+        logger.info(f"AI Assistant: output '{fmu}/{port}' exposed.")
         return f"{fmu}/{port}"
 
     def set_start_value(self, fmu: str, port: str, value: str) -> str:
         self._port(fmu, port)  # raises if unknown
         self._start_values[(fmu, port)] = str(value)
-        logger.info(f"[AI] Start value {fmu}/{port} = {value}")
+        logger.info(f"AI Assistant: start value of '{fmu}/{port}' set to '{value}'.")
         return f"{fmu}/{port} = {value}"
 
     def unset_start_value(self, fmu: str, port: str) -> str:
@@ -406,7 +407,7 @@ class HeadlessAssemblyBridge:
                    else " and the FMU declares none.")
             )
         del self._start_values[(fmu, port)]
-        logger.info(f"[AI] Start value cleared on {fmu}/{port}")
+        logger.info(f"AI Assistant: start value of '{fmu}/{port}' cleared.")
         return f"{fmu}/{port}"
 
     def set_container_options(self, options: dict[str, Any]) -> dict[str, Any]:
@@ -415,7 +416,7 @@ class HeadlessAssemblyBridge:
             raise ValueError(f"Unknown container option(s): {sorted(unknown)}. "
                              f"Allowed: {sorted(DEFAULT_OPTIONS)}")
         self._options.update(options)
-        logger.info(f"[AI] Container options updated: {options}")
+        logger.info(f"AI Assistant: container options updated: {options}.")
         return dict(self._options)
 
     # -- assembly ----------------------------------------------------------
@@ -462,12 +463,12 @@ class HeadlessAssemblyBridge:
 
     def save_as_json(self, path: str) -> str:
         self._assembly().write_json(Path(path))
-        logger.info(f"[AI] Exported assembly JSON to '{path}'")
+        logger.info(f"AI Assistant: assembly exported to '{path}'.")
         return path
 
     def save_as_ssp(self, path: str, ssp_version: str = "2.0") -> str:
         self._assembly().write_ssp(Path(path).resolve(), ssp_version=ssp_version)
-        logger.info(f"[AI] Exported assembly as SSP {ssp_version} to '{path}'")
+        logger.info(f"AI Assistant: assembly exported as SSP {ssp_version} to '{path}'.")
         return path
 
     def save_as_fmu(self, path: str, fmi_version: int = 2, datalog: bool = False) -> str:
@@ -484,7 +485,7 @@ class HeadlessAssemblyBridge:
             assembly.write_json(json_path, basenames_only=True)
             assembly.description_pathname = json_path
             assembly.make_fmu(filename=path, fmi_version=fmi_version, datalog=datalog)
-        logger.info(f"[AI] Built container FMU '{path}' (FMI-{fmi_version})")
+        logger.info(f"AI Assistant: container FMU '{path}' built (FMI-{fmi_version}).")
         return path
 
 

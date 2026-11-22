@@ -5,7 +5,7 @@
 ## Context
 
 The importer comparison study (`docs/local/done/importer_comparison.md`, report
-`docs/local/importer_comparison_report.md`, finding 3) showed that:
+`docs/local/done/importer_comparison_report.md`, finding 3) showed that:
 
 - the **container** does not propagate the links between its embedded FMUs during the initialization: every FMU
   goes through `fmuEnterInitializationMode` → start values → `fmuExitInitializationMode` with its inputs at their
@@ -176,7 +176,7 @@ Commit message: `Test the propagation of the links during the initialization`
     difference (outputs read in Initialization Mode vs after it; loops solved by the container, not by Simulink);
     the start value workaround removed;
   - *Validation checklist*: item 6 updated.
-- `docs/local/importer_comparison_report.md`: TL;DR point 1 and the *Follow-up* section updated.
+- `docs/local/done/importer_comparison_report.md`: TL;DR point 1 and the *Follow-up* section updated.
 - `CHANGELOG.md`: 🔵 **CHANGED** entry (FMU Container): the links are propagated during the initialization (results
   at t=0 may change), linking the container guide and the migration page.
 

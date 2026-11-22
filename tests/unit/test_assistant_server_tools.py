@@ -472,7 +472,7 @@ def test_saving_overwrites_when_explicitly_allowed(tmp_path, tool, name):
 
 
 def test_saving_rejects_a_missing_directory(tmp_path):
-    with pytest.raises(Exception, match="Directory does not exist"):
+    with pytest.raises(Exception, match="Directory .* does not exist."):
         call_tool(FakeBridge(), "save_assembly", {"path": str(tmp_path / "nope" / "out.json")})
 
 
@@ -610,7 +610,7 @@ def test_port_listing_can_be_filtered_by_type_and_variability():
 
     by_type = _ports_call(bridge, fmu="a.fmu", type=["Integer"])
     by_variability = _ports_call(bridge, fmu="a.fmu", variability=["tunable"])
-    # FMI 2 default variability: continuous, for the ports that declare none.
+    # FMI-2 default variability: continuous, for the ports that declare none.
     both = _ports_call(bridge, fmu="a.fmu", type=["Real"], variability=["continuous"])
 
     assert [port["name"] for port in by_type["ports"]] == ["u"]

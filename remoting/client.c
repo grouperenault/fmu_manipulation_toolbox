@@ -37,7 +37,7 @@
 #define LOG_DEBUG(client, ...)      _LOG(client, fmi2OK, ##__VA_ARGS__)
 #define LOG_WARNING(client, ...)    _LOG(client, fmi2Warning, ##__VA_ARGS__)
 #define LOG_ERROR(client, ...)      _LOG(client, fmi2Error, ##__VA_ARGS__)
-#define __NOT_IMPLEMENTED__     LOG_ERROR(client, "Function is not implemented"); return fmi2Error;
+#define __NOT_IMPLEMENTED__     LOG_ERROR(client, "Function is not implemented."); return fmi2Error;
 
 static char *next_cr(char *message) {
     char *cr = message;
@@ -102,10 +102,10 @@ static fmi2Status make_rpc(client_t* client, rpc_function_t function) {
     communication_client_ready(client->communication);
     while (communication_timedwaitfor_server(client->communication, COMMUNICATION_TIMEOUT_DEFAULT)) {
         if (!is_server_still_alive(client)) {
-            LOG_ERROR(client, "Server unexpectly died.");
+            LOG_ERROR(client, "Server died unexpectedly.");
             return fmi2Fatal;
         }
-        LOG_DEBUG(client, "Waiting for server...");
+        LOG_DEBUG(client, "Waiting for the server.");
     }
 
     status = remote_data->status; 
@@ -260,7 +260,7 @@ static int spawn_server(client_t *client) {
 
 
     CLIENT_LOG("Starting remoting server. (Command: %s %s %s %s %s %s %s)\n", argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
-    LOG_DEBUG(client, "Starting remoting server. (Command: %s %s %s %s %s %s %s)", argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
+    LOG_DEBUG(client, "Starting the remoting server: '%s %s %s %s %s %s %s'.", argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
 
     client->server_handle = process_spawn(argv);
 
@@ -273,7 +273,7 @@ static int spawn_server(client_t *client) {
     free(argv[6]);
 
     if (! client->server_handle) {
-        LOG_ERROR(client, "Failed to start server.");
+        LOG_ERROR(client, "Failed to start the server.");
         return -2;
     }
 
@@ -342,7 +342,7 @@ static client_t* client_new(const char *filename, const char *instanceName, cons
     client->instance_name = strdup(instanceName);
     client->is_debug = loggingOn;
 
-    LOG_DEBUG(client, "FMU Manipulation Toolbox: Remoting Interface version %s", VERSION_TAG);
+    LOG_DEBUG(client, "FMU Manipulation Toolbox remoting interface version %s.", VERSION_TAG);
     client_new_key(client, fmuResourceLocation);
 
     fp = fopen(filename, "rt");
@@ -353,21 +353,21 @@ static client_t* client_new(const char *filename, const char *instanceName, cons
     }
 
     if (fscanf(fp, "%lu %lu %lu ", &nb_reals, &nb_integers, &nb_booleans) < 3) {
-        LOG_ERROR(client, "Unable read header.");
+        LOG_ERROR(client, "Unable to read the header.");
         fclose(fp);
         free(client);
         return NULL;
     }
     client->communication = communication_new(client->shared_key, nb_reals, nb_integers, nb_booleans, COMMUNICATION_CLIENT);
     if (!client->communication) {
-        LOG_ERROR(client, "Unable to create SHM");
+        LOG_ERROR(client, "Unable to create the shared memory.");
         return NULL;
     }
         
     communication_data_initialize(&client->data, client->communication);
     for (unsigned long i = 0; i < nb_reals; i += 1) {
         if (fscanf(fp, "%u ", &client->data.reals.vr[i]) < 1) {
-            LOG_ERROR(client, "Unable to read REALS VR's.");
+            LOG_ERROR(client, "Unable to read the value references of the reals.");
             fclose(fp);
             client_free(client);
             return NULL;
@@ -377,7 +377,7 @@ static client_t* client_new(const char *filename, const char *instanceName, cons
     }
     for (unsigned long i = 0; i < nb_integers; i += 1) {
         if (fscanf(fp, "%u ", &client->data.integers.vr[i]) < 1) {
-            LOG_ERROR(client, "Unable to read INTEGERS VR's.");
+            LOG_ERROR(client, "Unable to read the value references of the integers.");
             fclose(fp);
             client_free(client);
             return NULL;
@@ -387,7 +387,7 @@ static client_t* client_new(const char *filename, const char *instanceName, cons
     }
     for (unsigned long i = 0; i < nb_booleans; i += 1) {
         if (fscanf(fp, "%u ", &client->data.booleans.vr[i]) < 1) {
-            LOG_ERROR(client, "Unable to read BOOLEANS VR's.");
+            LOG_ERROR(client, "Unable to read the value references of the booleans.");
             fclose(fp);
             client_free(client);
             return NULL;
@@ -547,7 +547,7 @@ fmi2Status fmi2GetReal(fmi2Component c, const fmi2ValueReference vr[], size_t nv
         if (index >= 0)
             value[i] = client->data.reals.value[index];
         else {
-            LOG_ERROR(client, "Cannot GetReal vr=%lu", vr[i]);
+            LOG_ERROR(client, "Cannot get the real %lu.", vr[i]);
             return fmi2Error;
         }
     }
@@ -563,7 +563,7 @@ fmi2Status fmi2GetInteger(fmi2Component c, const fmi2ValueReference vr[], size_t
         if (index >= 0)
             value[i] = client->data.integers.value[index];
         else {
-            LOG_ERROR(client, "Cannot GetInteger vr=%lu", vr[i]);
+            LOG_ERROR(client, "Cannot get the integer %lu.", vr[i]);
             return fmi2Error;
         }
     }
@@ -579,7 +579,7 @@ fmi2Status fmi2GetBoolean(fmi2Component c, const fmi2ValueReference vr[], size_t
         if (index >= 0)
             value[i] = client->data.booleans.value[index];
         else {
-            LOG_ERROR(client, "Cannot GetBoolean vr=%lu", vr[i]);
+            LOG_ERROR(client, "Cannot get the boolean %lu.", vr[i]);
             return fmi2Error;
         }
     }
@@ -608,7 +608,7 @@ fmi2Status fmi2SetReal(fmi2Component c, const fmi2ValueReference vr[], size_t nv
             client->data.reals.value[index] = value[i];
             client->data.reals.changed[index] = true;
         } else {
-            LOG_ERROR(client, "Cannot SetReal vr=%lu", vr[i]);
+            LOG_ERROR(client, "Cannot set the real %lu.", vr[i]);
             return fmi2Error;
         }
  
@@ -626,7 +626,7 @@ fmi2Status fmi2SetInteger(fmi2Component c, const fmi2ValueReference vr[], size_t
             client->data.integers.value[index] = value[i];
             client->data.integers.changed[index] = true;
         } else {
-            LOG_ERROR(client, "Cannot SetInteger vr=%lu", vr[i]);
+            LOG_ERROR(client, "Cannot set the integer %lu.", vr[i]);
             return fmi2Error;
         }
     }
@@ -643,7 +643,7 @@ fmi2Status fmi2SetBoolean(fmi2Component c, const fmi2ValueReference vr[], size_t
             client->data.booleans.value[index] = value[i];
             client->data.booleans.changed[index] = true;
         } else {
-            LOG_ERROR(client, "Cannot SetBoolean vr=%lu", vr[i]);
+            LOG_ERROR(client, "Cannot set the boolean %lu.", vr[i]);
             return fmi2Error;
         }
     }

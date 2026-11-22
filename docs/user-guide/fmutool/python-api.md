@@ -48,7 +48,7 @@ except FMUError as e:
 ```
 
 Every failure to open an FMU (missing file, not a ZIP archive, no `modelDescription.xml`) raises
-`FMUError`. A `modelDescription.xml` that cannot be read (not well-formed XML, not FMI 2.0 or 3.0)
+`FMUError`. A `modelDescription.xml` that cannot be read (not well-formed XML, not FMI-2 or FMI-3)
 raises `FMUError` from `apply_operation()`.
 
 The temporary directory is removed by `fmu.close()`, or automatically when the object is
@@ -109,7 +109,7 @@ fmu.repack("module-clean.fmu")
 ```
 
 Valid values for `apply_on` match the FMI `causality` attribute, e.g. `"parameter"`, `"input"`,
-`"output"`, `"local"`, `"independent"`, `"calculatedParameter"` (`"structuralParameter"` for FMI 3.0).
+`"output"`, `"local"`, `"independent"`, `"calculatedParameter"` (`"structuralParameter"` for FMI-3).
 Any causality not listed defaults to `"local"` when a port omits the attribute.
 
 The keyword arguments `types` and `variabilities` select the ports by their type and their variability. The
@@ -126,7 +126,7 @@ with FMU("module.fmu") as fmu:
     fmu.repack("module-clean.fmu")
 ```
 
-- `types`: the exact type of the ports (`"Real"`, `"Float64"`, `"Int32"`…) or, on an FMI 3.0 FMU, an FMI 2.0
+- `types`: the exact type of the ports (`"Real"`, `"Float64"`, `"Int32"`…) or, on an FMI-3 FMU, an FMI-2
   type standing for its family: `"Real"` selects `Float32` and `Float64`, `"Integer"` every integer type.
 - `variabilities`: `"constant"`, `"fixed"`, `"tunable"`, `"discrete"`, `"continuous"`. A port that declares no
   variability has the default of the standard (`ModelVariable.variability`).
@@ -355,7 +355,7 @@ fmu.repack("module-dual.fmu")
 ```
 
 !!! note
-    Remoting operations are only supported for FMI 2.0 FMUs on Windows.
+    Remoting operations are only supported for FMI-2 FMUs on Windows.
 
 ## Checker Operations
 
@@ -447,8 +447,8 @@ variables.
 
 The `fmu_port` argument is a
 [`ModelVariable`](../../API/model_description.md#fmu_manipulation_toolbox.model_description.ModelVariable): a view
-on the variable of the descriptor, with dict-like access to the attributes of every level (for FMI 2.0, those of
-`<ScalarVariable>` and of its type element, e.g. `<Real>`; for FMI 3.0, those of the variable element, and the
+on the variable of the descriptor, with dict-like access to the attributes of every level (for FMI-2, those of
+`<ScalarVariable>` and of its type element, e.g. `<Real>`; for FMI-3, those of the variable element, and the
 `<Start>` values of `String` and `Binary` variables under the key `start`). Changing an existing attribute changes
 the FMU; `[]` does not create attributes.
 

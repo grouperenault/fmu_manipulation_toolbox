@@ -126,7 +126,7 @@ class FMUContainer:
         self.fmu_directory = Path(fmu_directory)
         self.identifier = identifier
         if not self.fmu_directory.is_dir():
-            raise FMUContainerError(f"{self.fmu_directory} is not a valid directory")
+            raise FMUContainerError(f"'{self.fmu_directory}' is not a valid directory.")
         self.involved_fmu = InvolvedFMU()
 
         self.description_pathname = description_pathname
@@ -183,7 +183,8 @@ class FMUContainer:
             raise FMUContainerError(f"Cannot load '{fmu_filename}': {e}") from e
 
         if not fmu.fmi_version == self.fmi_version:
-            logger.warning(f"Try to embed FMU-{fmu.fmi_version} into container FMI-{self.fmi_version}.")
+            logger.warning(f"FMU '{fmu.name}' (FMI-{fmu.fmi_version}) is embedded in an FMI-{self.fmi_version} "
+                           f"container.")
         if self.reset_ports:
             self.add_reset_port(fmu)
         self.involved_fmu[fmu.name] = fmu
@@ -194,7 +195,7 @@ class FMUContainer:
         else:
             fmu_type = "CS"
 
-        logger.info(f"Involved FMU #{len(self.involved_fmu)}: {fmu} ({fmu_type})")
+        logger.info(f"Involved FMU #{len(self.involved_fmu)}: {fmu}, {fmu_type}.")
 
         return fmu
 
@@ -247,7 +248,8 @@ class FMUContainer:
         if cport in self.rules:
             previous_rule = self.rules[cport]
             if rule not in ("OUTPUT", "LINK") and previous_rule not in ("OUTPUT", "LINK"):
-                raise FMUContainerError(f"try to {rule} port {cport} which is already {previous_rule}")
+                raise FMUContainerError(f"{cport} is already used as {previous_rule.lower()}: it cannot also be used "
+                                        f"as {rule.lower()}.")
 
         self.rules[cport] = rule
 
@@ -303,7 +305,7 @@ class FMUContainer:
                 else to_port_name
 
         if cport_to.port.causality not in ("input", "parameter", "structuralParameter"):  # check causality
-            raise FMUContainerError(f"Tried to use '{cport_to}' as INPUT of the container but FMU causality is "
+            raise FMUContainerError(f"Cannot use {cport_to} as an input of the container: its causality is "
                                     f"'{cport_to.port.causality}'.")
         if not cport_to.is_exposable("INPUT"):
             return
@@ -319,7 +321,7 @@ class FMUContainer:
             self.inputs[container_port_name] = ContainerInput(container_port_name, cport_to)
         self.input_feeders[cport_to] = feeder
 
-        logger.debug(f"INPUT: {to_fmu_filename}:{to_port_name}")
+        logger.debug(f"{cport_to} is an input of the container.")
         self.mark_ruled(cport_to, 'INPUT')
 
     def add_output(self, from_fmu_filename: str, from_port_name: str, container_port_name: str):
@@ -345,15 +347,16 @@ class FMUContainer:
             raise FMUContainerError(f"Cannot add output '{container_port_name}': {e.reason}") from e
 
         if cport_from.port.causality not in ("output", "local"):  # check causality
-            raise FMUContainerError(f"Tried to use '{cport_from}' as OUTPUT of the container but FMU causality is "
+            raise FMUContainerError(f"Cannot use {cport_from} as an output of the container: its causality is "
                                     f"'{cport_from.port.causality}'.")
         if not cport_from.is_exposable("OUTPUT"):
             return
 
         if container_port_name in self.outputs:
-            raise FMUContainerError(f"Duplicate OUTPUT {container_port_name} already connected to {cport_from}")
+            raise FMUContainerError(f"The output '{container_port_name}' of the container is already connected to "
+                                    f"port {self.outputs[container_port_name].label}.")
 
-        logger.debug(f"OUTPUT: {from_fmu_filename}:{from_port_name}")
+        logger.debug(f"{cport_from} is an output of the container.")
         self.mark_ruled(cport_from, 'OUTPUT')
         self.outputs[container_port_name] = cport_from
 
@@ -377,9 +380,10 @@ class FMUContainer:
             raise FMUContainerError(f"Cannot drop port: {e.reason}") from e
 
         if not cport_from.port.causality == "output":  # check causality
-            raise FMUContainerError(f"{cport_from}: trying to DROP {cport_from.port.causality}")
+            raise FMUContainerError(f"Cannot drop {cport_from}: its causality is '{cport_from.port.causality}', not "
+                                    f"'output'.")
 
-        logger.debug(f"DROP: {from_fmu_filename}:{from_port_name}")
+        logger.debug(f"{cport_from} is dropped.")
         self.mark_ruled(cport_from, 'DROP')
 
     def add_link(self, from_fmu_filename: str, from_port_name: str, to_fmu_filename: str, to_port_name: str):
@@ -408,18 +412,19 @@ class FMUContainer:
             terminal1 = fmu_from.terminals[from_port_name]
             terminal2 = fmu_to.terminals[to_port_name]
             if terminal1 == terminal2:
-                logger.debug(f"Plugging terminals: {terminal1} <-> {terminal2}")
+                logger.debug(f"Plugging the terminals '{terminal1.path}' and '{terminal2.path}'.")
                 try:
                     links = terminal1.connect(terminal2)
                 except TerminalError as e:
-                    raise FMUContainerError(f"Cannot plug terminals of {fmu_from.name} and {fmu_to.name}: {e}") from e
+                    raise FMUContainerError(f"Cannot plug the terminals of '{fmu_from.name}' and '{fmu_to.name}': "
+                                            f"{e}") from e
                 for terminal1_port_name, terminal2_port_name in links:
                     self.add_link_regular(fmu_from, terminal1_port_name, fmu_to, terminal2_port_name)
                 for terminal1_port_name, terminal2_port_name in terminal1.connected_parameters(terminal2):
                     self.terminal_parameters.append((ContainerPort(fmu_from, terminal1_port_name),
                                                      ContainerPort(fmu_to, terminal2_port_name)))
             else:
-                logger.error(f"Cannot plug incompatible terminals: {terminal1} <-> {terminal2}")
+                logger.error(f"Cannot plug the incompatible terminals '{terminal1.path}' and '{terminal2.path}'.")
         else:
             # REGULAR port connection
             try:
@@ -437,15 +442,15 @@ class FMUContainer:
             cport_from = ContainerPort(fmu_from, from_port_name)
             cport_to = ContainerPort(fmu_to, to_port_name)
         except FMUContainerError as e:
-            raise FMUContainerError(f"Cannot link {from_port_name} -> {to_port_name}: {e.reason}") from e
+            raise FMUContainerError(f"Cannot link '{from_port_name}' to '{to_port_name}': {e.reason}") from e
 
         if cport_to.port.causality == "output" and cport_from.port.causality == "input":
-            logger.debug("Invert link orientation")
+            logger.debug("Link orientation inverted.")
             tmp = cport_to
             cport_to = cport_from
             cport_from = tmp
 
-        feeder = f"a link from {cport_from}"
+        feeder = f"a link from port {cport_from.label}"
         self.check_not_fed(cport_to, feeder)
         try:
             local = self.links[cport_from]
@@ -456,7 +461,7 @@ class FMUContainer:
         local.add_target(cport_to)  # Causality is check in the add() function
         self.input_feeders[cport_to] = feeder
 
-        logger.debug(f"LINK: {cport_from} -> {cport_to}")
+        logger.debug(f"Link: {cport_from.label} → {cport_to.label}.")
         self.mark_ruled(cport_from, 'LINK')
         self.mark_ruled(cport_to, 'LINK')
 
@@ -512,8 +517,8 @@ class FMUContainer:
         # Check dimensions
         value_tokens = str(value).split(' ')
         if not len(value_tokens) == cport.port.size():
-            raise FMUContainerError(f"Start value missmatch for {cport.port.type_name} which is dimension "
-                                    f"{cport.port.size()}")
+            raise FMUContainerError(f"The start value of {cport} does not match its dimension "
+                                    f"{cport.port.size()}.")
 
         # Check type
         for token in value_tokens:
@@ -530,7 +535,8 @@ class FMUContainer:
                 else:
                     raise FMUContainerError(f"Start value cannot be set on {cport} of type '{cport.port.type_name}'.")
             except ValueError:
-                raise FMUContainerError(f"Start value is not conforming to {cport.port.type_name} format.") from None
+                raise FMUContainerError(f"Start value of {cport} is not conforming to the format of "
+                                        f"'{cport.port.type_name}'.") from None
 
         # Format is different for string
         if cport.port.type_name == 'string':
@@ -550,15 +556,17 @@ class FMUContainer:
             elif cport2.port.causality == "parameter" and cport1.port.causality != "parameter":
                 target, source = cport2, cport1
             else:
-                logger.debug(f"No value to propagate between {cport1} and {cport2}")
+                logger.debug(f"No value to propagate between {cport1} and port {cport2.label}.")
                 continue
 
             if target in self.start_values:
-                logger.debug(f"Start value of {target} is kept: {source} is not propagated")
+                logger.debug(f"The start value of {target} is kept: port {source.label} is not propagated.")
             elif source.port.start_value is None:
-                logger.warning(f"The value of {source} is known at runtime only: it is not propagated to {target}.")
+                logger.warning(f"The value of {source} is known at runtime only: it is not propagated to port "
+                               f"{target.label}.")
             else:
-                logger.info(f"Start value of {target} is taken from {source}: {source.port.start_value}")
+                logger.info(f"The start value of {target} is taken from port {source.label}: "
+                            f"{source.port.start_value}.")
                 self.add_start_value(target.fmu.name, target.port.name, source.port.start_value)
 
     def find_inputs(self, port_to_connect: EmbeddedFMUPort) -> list[ContainerPort]:
@@ -611,29 +619,31 @@ class FMUContainer:
                                          if candidate not in self.rules and not candidate.fmu.is_instance]
                 if auto_link and candidates_cport_list and not cport.fmu.is_instance:
                     for candidate_cport in candidates_cport_list:
-                        logger.info(f"AUTO LINK: {cport} -> {candidate_cport}")
+                        logger.info(f"Auto link: {cport.label} → {candidate_cport.label}.")
                         self.add_link(cport.fmu.name, cport.port.name,
                                       candidate_cport.fmu.name, candidate_cport.port.name)
                         auto_wired.add_link(cport.fmu.name, cport.port.name,
                                             candidate_cport.fmu.name, candidate_cport.port.name)
                 elif auto_output and cport not in self.rules and cport.port.is_clocked:
-                    logger.warning(f"AUTO OUTPUT: {cport} is not exposed: clocks and clocked variables cannot be "
+                    logger.warning(f"Auto output: port {cport.label} is not exposed: clocks and clocked variables "
+                                   f"cannot be "
                                    f"exposed.")
                 elif auto_output and cport not in self.rules:
                     output_name = self._auto_name(cport)
-                    logger.info(f"AUTO OUTPUT: Expose {cport} as {output_name}")
+                    logger.info(f"Auto output: port {cport.label} exposed as '{output_name}'.")
                     self.add_output(cport.fmu.name, cport.port.name, output_name)
                     auto_wired.add_output(cport.fmu.name, cport.port.name, output_name)
             elif cport.port.causality == 'local':
                 local_portname = None
                 if cport.port.name.startswith("container."):
                     local_portname = "container." + cport.fmu.id + "." + cport.port.name[10:]
-                    logger.info(f"PROFILING: Expose {cport}")
+                    logger.info(f"Profiling: port {cport.label} exposed.")
                 elif auto_local and cport.port.is_clocked:
-                    logger.debug(f"AUTO LOCAL: {cport} is not exposed: clocks and clocked variables cannot be exposed.")
+                    logger.debug(f"Auto local: port {cport.label} is not exposed: clocks and clocked variables cannot "
+                                 f"be exposed.")
                 elif auto_local:
                     local_portname = cport.fmu.id + "." + cport.port.name
-                    logger.info(f"AUTO LOCAL: Expose {cport}")
+                    logger.info(f"Auto local: port {cport.label} exposed as '{local_portname}'.")
                 if local_portname:
                     self.add_output(cport.fmu.name, cport.port.name, local_portname)
                     auto_wired.add_output(cport.fmu.name, cport.port.name, local_portname)
@@ -643,26 +653,28 @@ class FMUContainer:
             if cport not in self.rules:
                 if auto_parameter and cport.port.causality == 'parameter':
                     parameter_name = cport.fmu.id + "." + cport.port.name
-                    logger.info(f"AUTO PARAMETER: {cport} as {parameter_name}")
+                    logger.info(f"Auto parameter: port {cport.label} exposed as '{parameter_name}'.")
                     self.add_input(parameter_name, cport.fmu.name, cport.port.name)
                     auto_wired.add_parameter(parameter_name, cport.fmu.name, cport.port.name)
                 elif auto_input and cport.port.causality == 'input' and cport.port.type_name == "clock" \
                         and cport.port.interval_variability in TIME_BASED_CLOCKS:
-                    logger.info(f"AUTO INPUT: {cport} is not exposed (a clock cannot be): the container schedules it.")
+                    logger.info(f"Auto input: port {cport.label} is not exposed (a clock cannot be): the container "
+                                f"schedules it.")
                 elif auto_input and cport.port.causality == 'input' and cport.port.is_clocked:
-                    logger.warning(f"AUTO INPUT: {cport} is not exposed: clocks and clocked variables cannot be "
+                    logger.warning(f"Auto input: port {cport.label} is not exposed: clocks and clocked variables "
+                                   f"cannot be "
                                    f"exposed.")
                 elif auto_input and cport.port.causality == 'input' :
                     input_name = self._default_reset_input_name(cport.fmu) if cport.port.is_reset \
                         else self._auto_name(cport)
-                    logger.info(f"AUTO INPUT: Expose {cport} as {input_name}")
+                    logger.info(f"Auto input: port {cport.label} exposed as '{input_name}'.")
                     self.add_input(input_name, cport.fmu.name, cport.port.name)
                     auto_wired.add_input(input_name, cport.fmu.name, cport.port.name)
 
         # FMI-LS-XCP: the variables that configure the XCP services of the embedded FMUs, whatever the options
         xcp.expose_variables(self, auto_wired)
 
-        logger.info(f"Auto-wiring: {auto_wired}")
+        logger.info(f"Automatic wiring: {auto_wired}")
 
         return auto_wired
 
@@ -678,7 +690,7 @@ class FMUContainer:
         """Compute the default step size from embedded FMUs.
 
         The step size is the least common multiple of the step sizes of the FMUs that
-        impose their step (`fixedInternalStepSize` of FMI 3.0, or no variable step size),
+        impose their step (`fixedInternalStepSize` of FMI-3, or no variable step size),
         computed exactly (`0.1` and `0.25` give `0.5`). Otherwise, returns the largest step size.
         FMUs without step size are ignored; without any step size, the default is 0.1 s.
 
@@ -697,7 +709,7 @@ class FMUContainer:
         if step_size is not None:
             return step_size
 
-        logger.warning(f"Defaulting to step_size={DEFAULT_STEP_SIZE}")
+        logger.warning(f"Defaulting to the step size {DEFAULT_STEP_SIZE}s.")
         return DEFAULT_STEP_SIZE
 
     def scheduled_clock_links(self) -> list[Link]:
@@ -727,13 +739,15 @@ class FMUContainer:
         for fmu in self.involved_fmu.values():
             if fmu.step_size and fmu.imposes_step_size:
                 ts_ratio = _exact(step_size) / _exact(fmu.step_size)   # exact: 0.3 / 0.1 is 3
-                logger.debug(f"container step_size: {step_size} = {fmu.step_size} x {float(ts_ratio)} for {fmu.name}")
+                logger.debug(f"Container step size {step_size}s = {fmu.step_size}s x {float(ts_ratio)} for "
+                             f"'{fmu.name}'.")
                 if ts_ratio < 1:
-                    logger.warning(f"Container step_size={step_size}s is lower than FMU '{fmu.name}' "
-                                   f"step_size={fmu.step_size}s.")
+                    logger.warning(f"The step size of the container ({step_size}s) is lower than the one of FMU "
+                                   f"'{fmu.name}' ({fmu.step_size}s).")
                 if ts_ratio.denominator != 1:
-                    logger.warning(f"Container step_size={step_size}s should be divisible by FMU '{fmu.name}' "
-                                   f"step_size={fmu.step_size}s.")
+                    logger.warning(f"The step size of the container ({step_size}s) should be a multiple of the one of "
+                                   f"FMU "
+                                   f"'{fmu.name}' ({fmu.step_size}s).")
             for port_name, fmu_port in fmu.ports.items():
                 if fmu_port.is_fmi2_aggregate:
                     continue
@@ -744,11 +758,11 @@ class FMUContainer:
                                        f"the FMU will never be reset.")
                     elif cport.port.causality == 'input' and cport.port.type_name == "clock" \
                             and cport.port.interval_variability in TIME_BASED_CLOCKS:
-                        logger.info(f"Input clock '{cport}' is not linked: the container schedules it.")
+                        logger.info(f"Input clock {cport.label} is not linked: the container schedules it.")
                     elif cport.port.causality == 'input':
-                        logger.error(f"Input '{cport}' is not connected")
+                        logger.error(f"Input {cport.label} is not connected.")
                     if cport.port.causality == 'output':
-                        logger.warning(f"Output '{cport}' is not connected")
+                        logger.warning(f"Output {cport.label} is not connected.")
 
     def make_fmu(self, fmu_filename: str | Path, step_size: float | None = None, debug=False, mt=False,
                  profiling=False, sequential=False, ts_multiplier=False, datalog=False,
@@ -780,15 +794,15 @@ class FMUContainer:
         xcp.check_ports(self)
 
         if step_size is None:
-            logger.info("step_size  will be deduced from the embedded FMU's")
+            logger.info("The step size will be deduced from the embedded FMUs.")
             step_size = self.default_step_size()
         self.sanity_check(step_size)
 
         if mt and len(self.involved_fmu) < 2:
-            logger.error("Requesting Multi-threaded mode with to few FMUs. Back to Mono-threaded mode.")
+            logger.error("The multi-threaded mode needs several FMUs: the container runs in mono-threaded mode.")
             mt = False
 
-        logger.info(f"Building FMU '{fmu_filename}', step_size={step_size}")
+        logger.info(f"Building '{fmu_filename}' with a step size of {step_size}s.")
 
         base_directory = self.fmu_directory / fmu_filename.with_suffix('')
         resources_directory = self.make_fmu_skeleton(base_directory)
@@ -818,7 +832,7 @@ class FMUContainer:
         """Build the container `modelDescription.xml` and write it (UTF-8, see `ModelDescription.save`).
 
         The document is built as an ElementTree, so that names and descriptions
-        coming from the embedded FMUs are escaped. FMI 2.0 `<Unknown index>`
+        coming from the embedded FMUs are escaped. FMI-2 `<Unknown index>`
         entries are computed from the actual position of the output variables.
         The value references come from `layout`.
         """
@@ -841,16 +855,16 @@ class FMUContainer:
         start_time = self.start_time
         if start_time is None:
             start_time = first_fmu.start_time
-            logger.info(f"start_time={start_time} (deduced from '{first_fmu.name}')")
+            logger.info(f"Start time: {start_time}s (deduced from '{first_fmu.name}').")
         else:
-            logger.info(f"start_time={start_time}")
+            logger.info(f"Start time: {start_time}s.")
 
         stop_time = self.stop_time
         if stop_time is None:
             stop_time = first_fmu.stop_time
-            logger.info(f"stop_time={stop_time} (deduced from '{first_fmu.name}')")
+            logger.info(f"Stop time: {stop_time}s (deduced from '{first_fmu.name}').")
         else:
-            logger.info(f"stop_time={stop_time}")
+            logger.info(f"Stop time: {stop_time}s.")
 
         root = ET.Element("fmiModelDescription", {
             "fmiVersion": f"{self.fmi_version}.0",
@@ -919,11 +933,11 @@ class FMUContainer:
                 model_variables.append(variable)
             return variable
 
-        logger.debug(f"Time vr = {layout.time}")
+        logger.debug(f"Value reference of the time: {layout.time}.")
 
         vr_ts_multiplier = layout.ts_multiplier
         if ts_multiplier:
-            logger.debug(f"TS Multiplier vr = {vr_ts_multiplier}")
+            logger.debug(f"Value reference of the TS multiplier: {vr_ts_multiplier}.")
             port = EmbeddedFMUPort("integer32", {"valueReference": vr_ts_multiplier,
                                                  "name": "container.ts_multiplier",
                                                  "causality": "input",
@@ -935,7 +949,7 @@ class FMUContainer:
 
         vr_solver = layout.solver
         if self.have_me:
-            logger.debug(f"Solver config vr = {vr_solver}")
+            logger.debug(f"Value reference of the solver configuration: {vr_solver}.")
             port = EmbeddedFMUPort("integer32", {"valueReference": vr_solver,
                                                  "name": "container.solver",
                                                  "causality": "input",
@@ -1205,14 +1219,15 @@ class FMUContainer:
                 fmu_io_list.add_output(link.cport_from, layout.links[link])
                 for cport_to in link.cport_to_list:
                     if cport_to.port.interval_variability in TIME_BASED_CLOCKS:
-                        logger.warning(f"{cport_to} ticks with {link.cport_from} only: their ticks must match.")
+                        logger.warning(f"{cport_to} ticks with port {link.cport_from.label} only: their ticks must "
+                                       f"match.")
             else:
                 local_per_type["clock"].append(LocalVariable(layout.links[link], link.size))
                 for cport_to in link.cport_to_list:
                     if cport_to.port.interval_variability in TIME_BASED_CLOCKS:
                         scheduled_clocks.append(cport_to)
-                        logger.info(f"LS-BUS: importer scheduling for '{cport_to.fmu.name}' '{cport_to.port.name}' "
-                                    f"(clock={cport_to.port.vr}, vr={layout.links[link]})")
+                        logger.info(f"FMI-LS-BUS: the importer schedules the clock {cport_to.label} "
+                                    f"(valueReference {cport_to.port.vr}, local {layout.links[link]}).")
                         clock_list.append(cport_to, layout.links[link])
                 self.check_clocks_of_link(link, scheduled_clocks)
 
@@ -1376,7 +1391,7 @@ class FMUContainer:
 
     @staticmethod
     def copyfile(origin, destination):
-        logger.debug(f"Copying {origin} in {destination}")
+        logger.debug(f"Copying '{origin}' to '{destination}'.")
         shutil.copy(origin, destination)
 
     def get_platforms(self, verbose=True) -> Generator[Platform, Any, None]:
@@ -1419,8 +1434,8 @@ class FMUContainer:
         elif os_list:
             logger.info(f"Container will be built for {', '.join(os_list)}.")
         else:
-            logger.critical("No common OS found for embedded FMU. Try to re-run with '-debug'. "
-                            "Container won't be runnable.")
+            logger.error("No common OS found for the embedded FMUs: the container will not be runnable. Try again "
+                         "with '-debug'.")
 
         for os_name in os_list:
             try:
@@ -1429,7 +1444,7 @@ class FMUContainer:
                 raise FMUContainerError(f"OS '{os_name}' is not supported.") from None
 
     def make_fmu_skeleton(self, base_directory: Path) -> Path:
-        logger.debug(f"Initialize directory '{base_directory}'")
+        logger.debug(f"Initialize directory '{base_directory}'.")
 
         origin = Path(__file__).parent.parent / "resources"  # resources of the toolbox package
         resources_directory = base_directory / "resources"
@@ -1445,8 +1460,8 @@ class FMUContainer:
             self.copyfile(self.description_pathname, documentation_directory)
 
         # Model icon location depends on the FMI version:
-        #   - FMI 3.0: terminalsAndIcons/icon.png
-        #   - FMI 2.0: model.png at the FMU root
+        #   - FMI-3: terminalsAndIcons/icon.png
+        #   - FMI-2: model.png at the FMU root
         if self.fmi_version == 3:
             terminals_and_icons_directory = base_directory / "terminalsAndIcons"
             terminals_and_icons_directory.mkdir(exist_ok=True)
@@ -1461,19 +1476,19 @@ class FMUContainer:
                 binary_directory.mkdir(exist_ok=True)
                 self.copyfile(library_filename, binary_directory / f"{self.identifier}.{platform.suffixe}")
             else:
-                logger.critical(f"File {library_filename} not found.")
+                logger.error(f"File '{library_filename}' not found.")
 
         for i, fmu in enumerate(self.involved_fmu.values()):
             with zipfile.ZipFile(fmu.fmu.fmu_filename) as zin:
                 zin.extractall(self.long_path(resources_directory / f"{i:02x}"))
-            # FMI 3.0 gives a NULL resourcePath to an FMU without resources folder (2.3.1), which some FMUs do not
+            # FMI-3 gives a NULL resourcePath to an FMU without resources folder (2.3.1), which some FMUs do not
             # expect (strdup(resourcePath)): every embedded FMU gets one, empty when it has none.
             os.makedirs(self.long_path(resources_directory / f"{i:02x}" / "resources"), exist_ok=True)
 
         return resources_directory
 
     def make_fmu_package(self, base_directory: Path, fmu_filename: Path):
-        logger.debug(f"Zipping directory '{base_directory}' => '{fmu_filename}'")
+        logger.debug(f"Zipping directory '{base_directory}' into '{fmu_filename}'.")
         zip_directory = self.long_path(str(base_directory.absolute()))
         offset = len(zip_directory) + 1
         with zipfile.ZipFile(self.fmu_directory / fmu_filename, "w", zipfile.ZIP_DEFLATED) as zip_file:
@@ -1490,5 +1505,5 @@ class FMUContainer:
         logger.info(f"'{fmu_filename}' is available.")
 
     def make_fmu_cleanup(self, base_directory: Path):
-        logger.debug(f"Delete directory '{base_directory}'")
+        logger.debug(f"Delete directory '{base_directory}'.")
         shutil.rmtree(self.long_path(base_directory))

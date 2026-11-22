@@ -1,4 +1,4 @@
-"""Conformity of the operations with the FMI 2.0.5 and 3.0.2 specifications.
+"""Conformity of the operations with the FMI-2.0.5 and FMI-3.0.2 specifications.
 
 The operations must not break rules of the standard that the XSD does not
 check. The FMI-2 `derivative` indices are renumbered after a removal. For the

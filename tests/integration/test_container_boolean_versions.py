@@ -1,5 +1,5 @@
-"""Outputs of embedded FMUs that are booleans of the other FMI version (FMI-2.0 `Boolean`, an `int`, in an FMI-3.0
-container; FMI-3.0 `Boolean`, a `bool`, in an FMI-2.0 container): exposed through a converted local variable.
+"""Outputs of embedded FMUs that are booleans of the other FMI version (FMI-2 `Boolean`, an `int`, in an FMI-3
+container; FMI-3 `Boolean`, a `bool`, in an FMI-2 container): exposed through a converted local variable.
 
 `Feedthrough.fmu` of `tests/data/compile`, compiled for the host platform, feeds `Boolean_input` through to
 `Boolean_output`: its start value `true` (start values have the type of the embedded port) must come out of the

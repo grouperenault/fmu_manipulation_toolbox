@@ -13,7 +13,7 @@ the embedded FMUs**. The MCD tool connects to each of them, with the A2L files g
 
 | Topic | Support |
 |---|---|
-| Version | FMI-LS-XCP 1.0.0, embedded FMUs FMI 2.0 and 3.0, containers FMI 2.0 and 3.0 |
+| Version | FMI-LS-XCP 1.0.0, embedded FMUs FMI-2 and FMI-3, containers FMI-2 and FMI-3 |
 | XCP service in the FMU (`containsXCPService`) | Forwarded: declared by the container, A2L files copied, configuration exposed |
 | Direct memory access only (`supportsDirectMemoryAccess`) | Not forwarded, with a warning: the container provides no XCP slave, and the addresses of the A2L file are relative to the binary of the FMU |
 | Several services | One per interface of each embedded FMU: the MCD tool connects to each of them |
@@ -39,8 +39,8 @@ Some variables are not exposed (they keep their start value, or the one given in
 
 - the variables that only **announce** the configuration (`constant` output, `calculatedParameter`): the importer
   cannot change it;
-- the variables whose type the container cannot expose for their role: an FMI 3.0 `UInt16` port or `Boolean` in an
-  FMI 2.0 container, an FMI 2.0 `Integer` port in an FMI 3.0 container (it would be an `Int32`, FMI-LS-XCP needs a
+- the variables whose type the container cannot expose for their role: an FMI-3 `UInt16` port or `Boolean` in an
+  FMI-2 container, an FMI-2 `Integer` port in an FMI-3 container (it would be an `Int32`, FMI-LS-XCP needs a
   `UInt16`). A warning is issued.
 
 ## Ports
@@ -74,16 +74,16 @@ issued.
 
 ## Configuration Mode
 
-An FMI 3.0 FMU usually declares its configuration variables as **structural parameters**: they can only be set in
+An FMI-3 FMU usually declares its configuration variables as **structural parameters**: they can only be set in
 *Configuration Mode*, and the FMU starts its XCP service when it leaves it. The container handles it:
 
-- an **FMI 3.0 container** exposes them as structural parameters. When its importer puts it in *Configuration Mode*,
+- an **FMI-3 container** exposes them as structural parameters. When its importer puts it in *Configuration Mode*,
   the container puts these FMUs in *Configuration Mode* too, and forwards the values;
-- otherwise (**FMI 2.0 container**, where they are exposed as parameters, or importer that does not use the
+- otherwise (**FMI-2 container**, where they are exposed as parameters, or importer that does not use the
   *Configuration Mode*), the container configures these FMUs itself before their initialization, with the values set
   by its importer.
 
-An FMI 2.0 FMU starts its XCP service in `fmi2SetupExperiment`: the container sets its parameters, and the values set
+An FMI-2 FMU starts its XCP service in `fmi2SetupExperiment`: the container sets its parameters, and the values set
 by its importer, before calling it.
 
 ## Checking an FMU

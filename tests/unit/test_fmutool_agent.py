@@ -29,7 +29,7 @@ pytestmark = [pytest.mark.unit]
 
 @pytest.fixture
 def fmus(data_dir, tmp_path):
-    """Two FMI 3 FMUs to assemble, copied where the outputs are written."""
+    """Two FMI-3 FMUs to assemble, copied where the outputs are written."""
     for name in ("bb_position.fmu", "bb_velocity.fmu"):
         shutil.copy(data_dir / "fmi3" / "bouncing_ball" / name, tmp_path / name)
     return tmp_path

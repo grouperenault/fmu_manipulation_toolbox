@@ -18,14 +18,14 @@ def test_invalid_fmu_directory_raises(tmp_path):
     missing = tmp_path / "no_such_dir"
     with pytest.raises(AssemblyError) as exc:
         Assembly("whatever.json", fmu_directory=missing)
-    assert "FMU directory is not valid" in str(exc.value)
+    assert str(exc.value).startswith("FMU directory '") and str(exc.value).endswith("' is not valid.")
 
 
 def test_unsupported_description_extension_raises(tmp_path):
     (tmp_path / "desc.txt").write_text("rule;from_fmu;from_port;to_fmu;to_port\n")
     with pytest.raises(AssemblyError) as exc:
         Assembly("desc.txt", fmu_directory=tmp_path)
-    assert "Not supported file format" in str(exc.value)
+    assert str(exc.value) == "File format of 'desc.txt' is not supported."
 
 
 def test_read_without_filename_raises(tmp_path):
@@ -46,7 +46,7 @@ def test_malformed_json_raises(tmp_path):
     (tmp_path / "bad.json").write_text("{ this is not valid json ")
     with pytest.raises(AssemblyError) as exc:
         Assembly("bad.json", fmu_directory=tmp_path)
-    assert "Cannot read json" in str(exc.value)
+    assert str(exc.value).startswith("Cannot read the JSON file: ")
 
 
 def test_write_with_unsupported_extension_raises(tmp_path):

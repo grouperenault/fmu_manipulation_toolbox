@@ -228,7 +228,7 @@ def cover(p, n, total):
          align=Qt.AlignmentFlag.AlignHCenter)
     text(p, QRectF(MARGIN + 40, 850, W - 2 * MARGIN - 80, 200),
          "The open-source toolbox to analyse, modify and combine FMUs", 38, TEXT, align=Qt.AlignmentFlag.AlignHCenter)
-    chips = ("FMI 2.0 & 3.0", "Python 3.10 – 3.14", "Windows · Linux · macOS")
+    chips = ("FMI-2 & FMI-3", "Python 3.10 – 3.14", "Windows · Linux · macOS")
     p.setFont(font(23, True))
     widths = [QFontMetricsF(p.font()).horizontalAdvance(c) + 44 for c in chips]
     x = (W - sum(widths) - 20 * (len(chips) - 1)) / 2
@@ -247,7 +247,7 @@ def cover(p, n, total):
 def tools(p, n, total):
     background(p, BLUE, n, total)
     y = title_block(p, 110, "THE TOOLBOX", BLUE, "Three tools, one toolbox",
-                    "Graphical interfaces, command line and Python API, for FMI 2.0 and 3.0 FMUs.")
+                    "Graphical interfaces, command line and Python API, for FMI-2 and FMI-3 FMUs.")
     entries = (("fmutool.png", "FMU Tool", "summarise, check, rename or remove ports, compile sources, add remoting"),
                ("fmueditor.png", "FMU Editor", "edit names, descriptions and experiment settings"),
                ("fmucontainer.png", "FMU Container Builder", "combine FMUs into one FMU, graphically"))
@@ -392,7 +392,7 @@ def compile_sources(p, n, total):
                    QRectF(img.width() * 0.134, img.height() * 0.055, img.width() * 0.861, img.height() * 0.19)) + 40
     y = screenshot(p, img, QRectF(MARGIN - 30, y, W - 2 * MARGIN + 60, 400),
                    QRectF(0, img.height() * 0.765, img.width() * 0.46, img.height() * 0.165)) + 50
-    bullets(p, y, ["FMI 2.0 and 3.0, C and C++",
+    bullets(p, y, ["FMI-2 and FMI-3, C and C++",
                    "Visual Studio, gcc or clang: Windows, Linux, macOS",
                    "Extra options if the compiler asks for them"], LIGHT["green"], size=30, spacing=14)
 
@@ -402,7 +402,7 @@ def robust(p, n, total):
     y = title_block(p, 110, "UNDER THE HOOD", RED, "Safer edits, stricter checks")
     items = (("In-place edits", "modelDescription.xml is edited, not re-generated: annotations, aliases and "
                                 "comments are kept."),
-             ("FMI semantic checker", "the rules of FMI 2.0 and 3.0 that the XSD cannot express."),
+             ("FMI semantic checker", "the rules of FMI-2 and FMI-3 that the XSD cannot express."),
              ("Refused, not broken", "an operation that would break the FMI standard leaves the FMU unchanged."),
              ("Ready for CI", "fmutool -check exits with status 7 on error."),
              ("Strict containers", "unknown ports and inputs fed twice stop the build."))

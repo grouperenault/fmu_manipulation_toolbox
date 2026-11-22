@@ -1,4 +1,4 @@
-"""The output clocks of FMI 3.0 activated in Event Mode, delivered by a container to the FMUs they are linked to.
+"""The output clocks of FMI-3 activated in Event Mode, delivered by a container to the FMUs they are linked to.
 
 `tests/data/clock-relay` is an FMU compiled for the host (see its `sources/model.c`): `source.fmu` ticks its output
 clock once, when the Event Mode starts; `relay.fmu` ticks its output clock in `fmi3UpdateDiscreteStates()` when its

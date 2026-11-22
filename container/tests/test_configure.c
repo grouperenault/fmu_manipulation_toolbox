@@ -90,7 +90,7 @@ int test_local_strings(void) {
 }
 
 
-/* An FMU that asks to terminate the simulation (FMI-2.0: fmi2Discard, then fmi2Terminated) ends the simulation of the
+/* An FMU that asks to terminate the simulation (FMI-2: fmi2Discard, then fmi2Terminated) ends the simulation of the
    container: fmi2DoStep returns fmi2Discard, fmi2Terminated and fmi2LastSuccessfulTime tell it, no further step. */
 int test_terminate_simulation(void) {
     char location[4096];

@@ -78,20 +78,20 @@ cache_t *cache_new(container_t *container) {
     unsigned long nb_entries = 0;
     cache->nb_fmus = (unsigned long)container->nb_fmu;
     CACHE_ALLOC(cache->fmus, cache->nb_fmus)
-#define COUNT_LINKS(variable, fmi_type, c_type)                                                          \
-    for (unsigned long i = 0; i < container-> variable .nb_ports; i += 1) {                              \
-        const container_port_t *port = &container-> variable .ports [i];                                 \
-        for (unsigned long j = 0; j < port->nb; j += 1) {                                                \
-            const container_vr_t *link = &port->links[j];                                                \
-            if ((long)link->fmu_id >= 0) {                                                               \
+#define COUNT_LINKS(variable, fmi_type, c_type)                                                                  \
+    for (unsigned long i = 0; i < container-> variable .nb_ports; i += 1) {                                      \
+        const container_port_t *port = &container-> variable .ports [i];                                         \
+        for (unsigned long j = 0; j < port->nb; j += 1) {                                                        \
+            const container_vr_t *link = &port->links[j];                                                        \
+            if ((long)link->fmu_id >= 0) {                                                                       \
                 cache->fmus[link->fmu_id].sets[link->cache.start_reset == 2][CACHE_TYPE_ ## variable].size += 1; \
-                nb_entries += 1;                                                                         \
-            }                                                                                            \
-        }                                                                                                \
-        if (port->cache.has_local) {                                                                     \
-            cache->deferred[CACHE_TYPE_ ## variable].size += 1;                                          \
-            nb_entries += 1;                                                                             \
-        }                                                                                                \
+                nb_entries += 1;                                                                                 \
+            }                                                                                                    \
+        }                                                                                                        \
+        if (port->cache.has_local) {                                                                             \
+            cache->deferred[CACHE_TYPE_ ## variable].size += 1;                                                  \
+            nb_entries += 1;                                                                                     \
+        }                                                                                                        \
     }
 
     FOR_ALL_NUMERIC_TYPES(COUNT_LINKS)
@@ -251,7 +251,7 @@ int cache_set_ ## type(container_t *container, container_port_t *port, const c_t
     for (size_t k = 0; k < nvalues; k += 1)                                                       \
         container->cache-> type [port->cache.offset + k] = value[k];                              \
     port->cache.nb = (unsigned long)nvalues;   /* at most the dimension of the port */            \
-    LOGGER_DEBUG("[DEBUG] Cache " #type " [%lu] = " format " (%zu value(s))", port->cache.offset, \
+    LOGGER_DEBUG("Cache " #type " [%lu] = " format " (%zu value(s)).", port->cache.offset,        \
                  (cast)value[0], nvalues);                                                        \
     return cache_port_set(container, CACHE_TYPE_ ## type, port);                                  \
 }
@@ -289,7 +289,7 @@ int cache_set_strings(container_t *container, container_port_t *port, const char
         }
     }
     port->cache.nb = (unsigned long)nvalues;   /* at most the dimension of the port */
-    LOGGER_DEBUG("[DEBUG] Cache strings [%lu] = %s (%zu value(s))", port->cache.offset, value[0], nvalues);
+    LOGGER_DEBUG("Cache strings [%lu] = '%s' (%zu value(s)).", port->cache.offset, value[0], nvalues);
     return cache_port_set(container, CACHE_TYPE_strings, port);
 }
 
@@ -312,7 +312,7 @@ int cache_set_binaries(container_t *container, container_port_t *port, const siz
         }
     }
     port->cache.nb = (unsigned long)nvalues;   /* at most the dimension of the port */
-    LOGGER_DEBUG("[DEBUG] Cache binaries [%lu] = %zu byte(s) (%zu value(s))", port->cache.offset, size[0],
+    LOGGER_DEBUG("Cache binaries [%lu] = %zu byte(s) (%zu value(s)).", port->cache.offset, size[0],
                  nvalues);
     return cache_port_set(container, CACHE_TYPE_binaries, port);
 }
@@ -456,7 +456,7 @@ static fmu_status_t cache_sync_set(container_t *container, const fmu_t *fmu, cac
     }
 
     if (status != FMU_STATUS_OK) {
-        LOGGER_ERROR("Container: FMU '%s' refused the value set on the container for vr=%u.",
+        LOGGER_ERROR("FMU '%s' refused the value set on the container for valueReference %u.",
                      fmu->name, set->entries[i - 1].link->fmu_vr);
         /* the entries not processed yet stay in the set */
         memmove(set->entries, set->entries + i, (set->nb - i) * sizeof(*set->entries));
@@ -486,7 +486,7 @@ fmu_status_t cache_sync_fmu(container_t *container, unsigned long fmu_id, bool c
         for (int t = 0; t < CACHE_NB_TYPES; t += 1) {
             cache_set_t *set = &fmu_cache->sets[1][t];
             for (unsigned long i = 0; i < set->nb; i += 1) {
-                LOGGER_WARNING("Container: FMU '%s' is configured: the structural parameter vr=%u set on the container "
+                LOGGER_WARNING("FMU '%s' is configured: the structural parameter %u set on the container "
                                "is set at its next configuration.", fmu->name, set->entries[i].link->fmu_vr);
                 set->entries[i].link->cache.in_set = false;
             }

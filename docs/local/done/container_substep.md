@@ -4,7 +4,7 @@
 
 ## Context
 
-The importer comparison study (`docs/local/importer_comparison_report.md`, finding 4) tried the multi-rate
+The importer comparison study (`docs/local/done/importer_comparison_report.md`, finding 4) tried the multi-rate
 assemblies of Simulink as one sub-container per sample time. Every FMU then receives its own step size, but the
 values exchanged between rates are not those of Simulink. The cause is a defect of `container_do_step`
 (`container/container.c:1096`) with respect to the FMI contract of `doStep`, when the communication step `h` given by
@@ -114,7 +114,7 @@ Commit message: `Test communication steps that are not a multiple of the contain
   of different steps).
 - `docs/developer/dostep-fmi-sequence.md`: the sequence of a pending internal step.
 - `docs/examples/simulink-to-container.md`: *One sub-container per sample time*, the remaining difference removed.
-- `docs/local/importer_comparison_report.md`: TL;DR point 3 and finding 4.
+- `docs/local/done/importer_comparison_report.md`: TL;DR point 3 and finding 4.
 - `CHANGELOG.md`: 🟠 **FIXED** entry (FMU Container).
 
 Commit message: `Document the communication steps that are not a multiple of the container step`

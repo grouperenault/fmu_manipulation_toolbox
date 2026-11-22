@@ -46,6 +46,8 @@ def test_fmutool_same_input_output_exits(area_dir, caplog):
 
     assert exc.value.code == ExitCode.USAGE_ERROR
     assert "different files" in caplog.text
+    # No result is produced: CRITICAL (docs/developer/logging.md).
+    assert [record.levelname for record in caplog.records if "different files" in record.getMessage()] == ["CRITICAL"]
 
 
 @pytest.mark.area("operations")
@@ -71,6 +73,7 @@ def test_fmutool_operation_error_exits(area_dir, caplog):
 
     assert exc.value.code == ExitCode.OPERATION_FAILED
     assert "win32" in caplog.text
+    assert caplog.records[-1].levelname == "CRITICAL"
 
 
 @pytest.mark.area("operations")
@@ -149,6 +152,8 @@ def test_fmutool_output_error_exits(area_dir, caplog):
         fmutool()
 
     assert exc.value.code == ExitCode.OUTPUT_ERROR
+    assert caplog.records[-1].levelname == "CRITICAL"
+    assert caplog.records[-1].getMessage().startswith("Cannot write the output: ")
 
 
 # --------------------------------------------------------------------------- #
@@ -163,7 +168,7 @@ def test_fmucontainer_missing_description_exits(area_dir, caplog):
         fmucontainer()
 
     assert exc.value.code == ExitCode.INPUT_UNREADABLE
-    assert "Cannot read file" in caplog.text
+    assert "Cannot read the file: " in caplog.text
 
 
 @pytest.mark.area("containers/bouncing_ball")
@@ -192,7 +197,8 @@ def test_fmusplit_not_a_container_exits(area_dir, caplog):
         fmusplit()
 
     assert exc.value.code == ExitCode.INVALID_INPUT
-    assert "not an FMU Container" in caplog.text
+    assert "'bouncing_ball.fmu': This FMU is not an FMU container." in caplog.text
+    assert caplog.records[-1].levelname == "CRITICAL"
 
 
 @pytest.mark.area("operations")
@@ -203,5 +209,5 @@ def test_fmusplit_missing_file_exits(area_dir, caplog):
         fmusplit()
 
     assert exc.value.code == ExitCode.INPUT_UNREADABLE
-    assert "Cannot read file" in caplog.text
+    assert "Cannot read the file: " in caplog.text
 

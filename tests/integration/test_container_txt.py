@@ -18,7 +18,7 @@ CONTAINER_TXT = "resources/container.txt"
 
 
 def _make_container(filename: str, string_input: str | None = None) -> str:
-    """Container of `Feedthrough.fmu` (FMI 2.0) compiled for the host, `String_output` exposed as `out`."""
+    """Container of `Feedthrough.fmu` (FMI-2) compiled for the host, `String_output` exposed as `out`."""
     from fmu_manipulation_toolbox.compiler import OperationCompileSources
     from fmu_manipulation_toolbox.operations import FMU
 

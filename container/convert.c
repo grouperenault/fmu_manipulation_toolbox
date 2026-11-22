@@ -33,12 +33,12 @@ convert_table_t *convert_new(const logger_t *logger, unsigned long nb) {
             table->nb = nb;
             table->entries = malloc(nb * sizeof(*table->entries));
             if (! table->entries) {
-                LOGGER_ERROR("Cannot allocate conversion table for %lu entries.", nb);
+                LOGGER_ERROR("Cannot allocate the conversion table for %lu entries.", nb);
                 free(table);
                 table = NULL;
             }
         } else
-            LOGGER_ERROR("Cannot allocate conversion table");
+            LOGGER_ERROR("Cannot allocate the conversion table.");
     } 
     return table;
 }
@@ -61,47 +61,55 @@ void convert_proceed(const container_t *container, const convert_table_t *table)
 }
 
 
-#define CONVERSION_FUNCTION(name, from_type, from_c_type, to_type, to_c_type)                                       \
-static void convert_ ## name(const container_t *container, fmu_vr_t from, fmu_vr_t to) {                            \
-    unsigned long dimension = container-> from_type .ports [from].dimension;                                       \
-    const from_c_type *from_value = container-> from_type .locals + container-> from_type .ports [from].links[0].fmu_vr;   \
-    to_c_type         *to_value   = container-> to_type .locals   + container-> to_type .ports [to].links[0].fmu_vr;       \
-                                                                                                                    \
-    for(unsigned long i = 0; i < dimension; i += 1)                                                                 \
-        to_value[i] = (to_c_type)from_value[i];                                                                     \
+#define CONVERSION_FUNCTION(name, from_type, from_c_type, to_type, to_c_type)            \
+static void convert_ ## name(const container_t *container, fmu_vr_t from, fmu_vr_t to) { \
+    unsigned long dimension = container-> from_type .ports [from].dimension;             \
+    const from_c_type *from_value = container-> from_type .locals +                      \
+                                    container-> from_type .ports [from].links[0].fmu_vr; \
+    to_c_type         *to_value   = container-> to_type .locals +                        \
+                                    container-> to_type .ports [to].links[0].fmu_vr;     \
+                                                                                         \
+    for(unsigned long i = 0; i < dimension; i += 1)                                      \
+        to_value[i] = (to_c_type)from_value[i];                                          \
 }
 
 
-#define CONVERSION_FUNCTION_F_B(name, from_type, from_c_type, to_type, to_c_type)                                   \
-static void convert_ ## name(const container_t *container, fmu_vr_t from, fmu_vr_t to) {                            \
-    unsigned long dimension = container-> from_type .ports [from].dimension;                                       \
-    const from_c_type *from_value = container-> from_type .locals + container-> from_type .ports [from].links[0].fmu_vr;   \
-    to_c_type         *to_value   = container-> to_type .locals   + container-> to_type .ports [to].links[0].fmu_vr;       \
-                                                                                                                    \
-    for(unsigned long i = 0; i < dimension; i += 1)                                                                 \
-        to_value[i] = (to_c_type)(fabs((double)from_value[i]) > container->tolerance);                              \
+#define CONVERSION_FUNCTION_F_B(name, from_type, from_c_type, to_type, to_c_type)        \
+static void convert_ ## name(const container_t *container, fmu_vr_t from, fmu_vr_t to) { \
+    unsigned long dimension = container-> from_type .ports [from].dimension;             \
+    const from_c_type *from_value = container-> from_type .locals +                      \
+                                    container-> from_type .ports [from].links[0].fmu_vr; \
+    to_c_type         *to_value   = container-> to_type .locals +                        \
+                                    container-> to_type .ports [to].links[0].fmu_vr;     \
+                                                                                         \
+    for(unsigned long i = 0; i < dimension; i += 1)                                      \
+        to_value[i] = (to_c_type)(fabs((double)from_value[i]) > container->tolerance);   \
 }
 
 
-#define CONVERSION_FUNCTION_D_B(name, from_type, from_c_type, to_type, to_c_type)                                   \
-static void convert_ ## name(const container_t *container, fmu_vr_t from, fmu_vr_t to) {                            \
-    unsigned long dimension = container-> from_type .ports [from].dimension;                                       \
-    const from_c_type *from_value = container-> from_type .locals + container-> from_type .ports [from].links[0].fmu_vr;   \
-    to_c_type         *to_value   = container-> to_type .locals   + container-> to_type .ports [to].links[0].fmu_vr;       \
-                                                                                                                    \
-    for(unsigned long i = 0; i < dimension; i += 1)                                                                 \
-        to_value[i] = (to_c_type)(from_value[i] != 0);                                                              \
+#define CONVERSION_FUNCTION_D_B(name, from_type, from_c_type, to_type, to_c_type)        \
+static void convert_ ## name(const container_t *container, fmu_vr_t from, fmu_vr_t to) { \
+    unsigned long dimension = container-> from_type .ports [from].dimension;             \
+    const from_c_type *from_value = container-> from_type .locals +                      \
+                                    container-> from_type .ports [from].links[0].fmu_vr; \
+    to_c_type         *to_value   = container-> to_type .locals +                        \
+                                    container-> to_type .ports [to].links[0].fmu_vr;     \
+                                                                                         \
+    for(unsigned long i = 0; i < dimension; i += 1)                                      \
+        to_value[i] = (to_c_type)(from_value[i] != 0);                                   \
 }
 
 
-#define CONVERSION_FUNCTION_B(name, from_type, from_c_type, to_type, to_c_type)                                     \
-static void convert_ ## name(const container_t *container, fmu_vr_t from, fmu_vr_t to) {                            \
-    unsigned long dimension = container-> from_type .ports [from].dimension;                                       \
-    const from_c_type *from_value = container-> from_type .locals + container-> from_type .ports [from].links[0].fmu_vr;   \
-    to_c_type         *to_value   = container-> to_type .locals   + container-> to_type .ports [to].links[0].fmu_vr;       \
-                                                                                                                    \
-    for(unsigned long i = 0; i < dimension; i += 1)                                                                 \
-        to_value[i] = (to_c_type)(from_value[i]?1:0);                                                               \
+#define CONVERSION_FUNCTION_B(name, from_type, from_c_type, to_type, to_c_type)          \
+static void convert_ ## name(const container_t *container, fmu_vr_t from, fmu_vr_t to) { \
+    unsigned long dimension = container-> from_type .ports [from].dimension;             \
+    const from_c_type *from_value = container-> from_type .locals +                      \
+                                    container-> from_type .ports [from].links[0].fmu_vr; \
+    to_c_type         *to_value   = container-> to_type .locals +                        \
+                                    container-> to_type .ports [to].links[0].fmu_vr;     \
+                                                                                         \
+    for(unsigned long i = 0; i < dimension; i += 1)                                      \
+        to_value[i] = (to_c_type)(from_value[i]?1:0);                                    \
 }
 
 

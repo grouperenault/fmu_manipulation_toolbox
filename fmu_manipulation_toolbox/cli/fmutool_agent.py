@@ -230,7 +230,7 @@ def run(argv=None) -> int:
     """Entry point of ``fmutool-agent``; returns the exit code."""
     options = _parse_args(argv)
     handler, previous_level = _setup_logger(options.debug)
-    logger.debug(f"FMU Manipulation Toolbox agent command line version {version}")
+    logger.debug(f"FMU Manipulation Toolbox agent command line version {version}.")
     try:
         if options.tool == "list-tools":
             _print(describe_tools())
@@ -268,7 +268,7 @@ def run(argv=None) -> int:
         if is_actionable(exc):
             _print({"error": str(exc)})
         else:
-            logger.exception(f"Unexpected error in '{options.tool}'")
+            logger.exception(f"Unexpected error in '{options.tool}'.")
             _print({"error": f"'{options.tool}' failed unexpectedly ({type(exc).__name__}). This is a bug in the "
                              f"FMU Manipulation Toolbox; run again with --debug for the details."})
         return EXIT_TOOL_ERROR

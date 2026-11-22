@@ -1,7 +1,7 @@
 """Compilation of the sources embedded in an FMU for the host platform.
 
 Some FMUs ship their C or C++ sources in `sources/` but no binary for the platform of the user.
-`SourceCompiler` reads how to build them (FMI 2.0: `<SourceFiles>` of each interface; FMI 3.0:
+`SourceCompiler` reads how to build them (FMI-2: `<SourceFiles>` of each interface; FMI-3:
 `sources/buildDescription.xml`) and calls the C compiler of the host (`Toolchain`) to build the shared library
 into `binaries/<platform>/`.
 """
@@ -32,7 +32,7 @@ CXX_SUFFIXES = (".cpp", ".cc", ".cxx", ".c++")
 
 
 def _host_architecture() -> str:
-    """Architecture of the running interpreter, as named by FMI 3.0 (`x86_64`, `x86` or `aarch64`)."""
+    """Architecture of the running interpreter, as named by FMI-3 (`x86_64`, `x86` or `aarch64`)."""
     machine = platform.machine().lower()
     if machine in ("x86_64", "amd64", "x86", "i386", "i686"):
         return "x86_64" if sys.maxsize > 2 ** 32 else "x86"
@@ -43,7 +43,7 @@ def _host_architecture() -> str:
 
 @dataclass
 class SourceFileSet:
-    """Sources compiled with the same settings (a `<SourceFileSet>` of FMI 3.0, all the sources for FMI 2.0).
+    """Sources compiled with the same settings (a `<SourceFileSet>` of FMI-3, all the sources for FMI-2).
 
     Attributes:
         source_files (list[Path]): Source files, in the order of the build description.
@@ -241,7 +241,7 @@ class SourceCompiler:
         architecture = _host_architecture()
 
         if fmi_version == 2:
-            # FMI 2.0 only names x86 platforms; `darwin64` is also used for Apple Silicon.
+            # FMI-2 only names x86 platforms; `darwin64` is also used for Apple Silicon.
             names = {
                 ("Windows", "x86_64"): "win64",
                 ("Windows", "x86"): "win32",
@@ -253,7 +253,7 @@ class SourceCompiler:
             try:
                 return names[(system, architecture)]
             except KeyError:
-                raise OperationError(f"FMI 2.0 has no platform name for {system} on '{platform.machine()}'.") \
+                raise OperationError(f"FMI-2 has no platform name for {system} on '{platform.machine()}'.") \
                     from None
 
         systems = {"Windows": "windows", "Linux": "linux", "Darwin": "darwin"}
@@ -318,11 +318,11 @@ class SourceCompiler:
     def _fmi3_configurations(self) -> list[BuildConfiguration]:
         filename = self.sources_directory / "buildDescription.xml"
         if not filename.is_file():
-            raise OperationError("sources/buildDescription.xml is missing: the sources to compile are unknown.")
+            raise OperationError("'sources/buildDescription.xml' is missing: the sources to compile are unknown.")
         try:
             root = ET.parse(filename).getroot()
         except ET.ParseError as error:
-            raise OperationError(f"sources/buildDescription.xml cannot be read: {error}") from None
+            raise OperationError(f"'sources/buildDescription.xml' cannot be read: {error}.") from None
 
         host_platform = self.host_platform(self.fmi_version)
         configurations: dict[str, BuildConfiguration] = {}
@@ -337,7 +337,7 @@ class SourceCompiler:
             configurations[model_identifier] = self._fmi3_configuration(model_identifier, element)
 
         if not configurations:
-            raise OperationError(f"sources/buildDescription.xml has no build configuration for '{host_platform}'.")
+            raise OperationError(f"'sources/buildDescription.xml' has no build configuration for '{host_platform}'.")
         return list(configurations.values())
 
     def _fmi3_configuration(self, model_identifier: str, element: ET.Element) -> BuildConfiguration:

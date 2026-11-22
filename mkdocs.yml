@@ -188,6 +188,7 @@ nav:
       - Native Runtime: developer/native-runtime.md
       - Initialization FMI Sequence: developer/init-fmi-sequence.md
       - DoStep FMI Sequence: developer/dostep-fmi-sequence.md
+      - Log Messages: developer/logging.md
   - Help:
       - Troubleshooting: help/troubleshooting.md
       - Contributing: help/contributing.md

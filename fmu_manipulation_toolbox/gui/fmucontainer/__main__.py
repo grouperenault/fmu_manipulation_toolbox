@@ -28,7 +28,12 @@ from PySide6.QtWidgets import (
     QWidgetAction,
 )
 
-from fmu_manipulation_toolbox.gui.helper import Application, LastDirectory, UnsavedChangesWindowMixin
+from fmu_manipulation_toolbox.gui.helper import (
+    Application,
+    LastDirectory,
+    UnsavedChangesWindowMixin,
+    exception_message,
+)
 from fmu_manipulation_toolbox.gui.log import GuiLogHandler, LogStatusBar, RunTask, window_log_context
 
 from .assembly_io import AssemblyIOMixin
@@ -207,7 +212,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
 
                 from .mcp_bridge import McpServerController
             except ImportError as e:
-                self._ai_assistant_error(f"Cannot load MCP support: {e}")
+                self._ai_assistant_error(f"Cannot load the MCP support: {e}.")
                 return
             try:
                 if self._mcp_controller is None:
@@ -216,14 +221,14 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
                     self._mcp_controller.error.connect(self._ai_assistant_error)
                     # Only once the server really listens: starting it is not enough.
                     self._mcp_controller.ready.connect(
-                        lambda url: logger.info(f"AI Assistant enabled — connect your MCP client to {url}"))
+                        lambda url: logger.info(f"AI Assistant enabled: connect your MCP client to '{url}'."))
                 self._mcp_controller.start()
             except McpUnavailableError as e:
                 self._ai_assistant_error(str(e))
             except OSError as e:
                 self._ai_assistant_error(str(e))
             except Exception as e:  # noqa: BLE001
-                self._ai_assistant_error(f"Cannot start AI Assistant: {e}")
+                self._ai_assistant_error(f"Cannot start the AI Assistant: {exception_message(e)}.")
         else:
             if self._mcp_controller is not None:
                 self._mcp_controller.stop()
@@ -235,7 +240,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         Always runs on the Qt main thread (direct calls, or queued via the
         controller's ``error`` signal).
         """
-        logger.error(message)
+        logger.critical(message)
         # Reverting to Off also stops the server via the toggled handler.
         self._ai_off_radio.setChecked(True)
         msg = QMessageBox(self)
@@ -268,7 +273,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         GuiLogHandler.install().set_window_verbose(self, bool(state))
         if state:
             with window_log_context(self):
-                logger.debug("Verbose mode enabled")
+                logger.debug("Verbose mode enabled.")
 
     def _on_node_added_update_dir(self, node: NodeItem):
         """Track the directory of the last FMU added to the scene."""
@@ -286,11 +291,11 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
     def _on_load_clicked(self):
         """Load: an FMU container is loaded, an assembly file imported, after the extension (`open_file`)."""
         if not self._confirm_discard_changes("You have unsaved changes. Are you sure you want to load another file?"):
-            logger.info("Load cancelled")
+            logger.info("Load cancelled.")
             return
         input_path = LastDirectory.get_open_file_name(self, "Load", self.OPEN_FILTERS)
         if not input_path:
-            logger.info("Load cancelled")
+            logger.info("Load cancelled.")
             return
         self.open_file(input_path)
 
@@ -314,7 +319,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         output_path, chosen = LastDirectory.get_save_file_name_and_filter(
             self, "Save", ";;".join(self.SAVE_FORMATS), selected, default_name=root_name)
         if not output_path:
-            logger.info("Save cancelled")
+            logger.info("Save cancelled.")
             return
         output_path, self._save_format = self.save_target(output_path, chosen)
         if self._save_format == ".ssp":
@@ -348,13 +353,13 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         """Open a file (Load, or the command line): an FMU container is loaded, an assembly file is imported."""
         path = Path(input_path)
         if not path.is_file():
-            logger.error(f"Cannot open '{input_path}': file not found.")
+            logger.critical(f"Cannot open '{input_path}': file not found.")
         elif path.suffix.lower() == ".fmu":
             self.load_file(input_path)
         elif path.suffix.lower() in (".json", ".csv", ".ssp"):
             self.import_file(input_path)
         else:
-            logger.error(f"Cannot open '{input_path}': expected an FMU container (.fmu) or an assembly file "
+            logger.critical(f"Cannot open '{input_path}': expected an FMU container (.fmu) or an assembly file "
                          f"(.json, .csv, .ssp).")
 
 

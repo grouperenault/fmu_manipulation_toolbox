@@ -284,7 +284,7 @@ their variability. Both can be repeated, and combine with the `-only-*`
 causality options: a port is processed only if it matches each of them.
 
 ```bash
-# List the real ports (Real in FMI 2.0; Float32 and Float64 in FMI 3.0)
+# List the real ports (Real in FMI-2; Float32 and Float64 in FMI-3)
 fmutool -input module.fmu -only-type Real -dump-csv reals.csv
 
 # Remove the parameters that cannot change during the simulation
@@ -294,14 +294,14 @@ fmutool -input module.fmu -only-parameters -only-variability fixed -remove-all -
 fmutool -input module.fmu -only-inputs -only-type Integer -rename-from-csv new_names.csv -output module-renamed.fmu
 ```
 
-- `-only-type` takes an FMI 2.0 type (`Real`, `Integer`, `Boolean`, `String`,
-  `Enumeration`) or an FMI 3.0 one (`Float32`, `Float64`, `Int8`…`UInt64`,
-  `Boolean`, `String`, `Binary`, `Enumeration`, `Clock`). On an FMI 3.0 FMU, an
-  FMI 2.0 type selects its family: `Real` is `Float32` and `Float64`, `Integer`
+- `-only-type` takes an FMI-2 type (`Real`, `Integer`, `Boolean`, `String`,
+  `Enumeration`) or an FMI-3 one (`Float32`, `Float64`, `Int8`…`UInt64`,
+  `Boolean`, `String`, `Binary`, `Enumeration`, `Clock`). On an FMI-3 FMU, an
+  FMI-2 type selects its family: `Real` is `Float32` and `Float64`, `Integer`
   every integer type.
 - `-only-variability` takes `constant`, `fixed`, `tunable`, `discrete` or
   `continuous`. A port that declares no variability has the default of the
-  standard: `continuous` in FMI 2.0; in FMI 3.0, `fixed` for parameters,
+  standard: `continuous` in FMI-2; in FMI-3, `fixed` for parameters,
   `continuous` for `Float32`/`Float64` and `discrete` for the other types.
 
 ## Binary Operations
@@ -321,8 +321,8 @@ fmutool -input module.fmu -compile-sources -output module-compiled.fmu
 ```
 
 **Effect:** When the FMU embeds its C (or C++) sources but no binary for the current platform, the sources are
-compiled and the shared library is added to `binaries/<platform>/` (e.g. `binaries/linux64/` for FMI 2.0,
-`binaries/x86_64-linux/` for FMI 3.0). If the binary already exists, nothing is compiled. The sources are kept, and
+compiled and the shared library is added to `binaries/<platform>/` (e.g. `binaries/linux64/` for FMI-2,
+`binaries/x86_64-linux/` for FMI-3). If the binary already exists, nothing is compiled. The sources are kept, and
 `modelDescription.xml` is not changed.
 
 ```
@@ -342,13 +342,13 @@ INFO     | Binary 'binaries/x86_64-linux/BouncingBall.so' is built.
 | Linux | `cc` (e.g. `sudo apt-get install build-essential`), or the compiler given by the `CC` environment variable (`CXX` for C++). |
 | macOS | `cc` of the Xcode Command Line Tools (`xcode-select --install`), or `CC` / `CXX`. |
 
-**What is compiled:** the files listed by the FMU: `<SourceFiles>` of `modelDescription.xml` (FMI 2.0), or
-`sources/buildDescription.xml` (FMI 3.0) with its preprocessor definitions, include directories and libraries.
+**What is compiled:** the files listed by the FMU: `<SourceFiles>` of `modelDescription.xml` (FMI-2), or
+`sources/buildDescription.xml` (FMI-3) with its preprocessor definitions, include directories and libraries.
 The FMI headers are provided by FMU Manipulation Toolbox. The shared library is built for the current platform
 only (no cross-compilation), with optimizations (`-O2` / `/O2`) and, on Windows, the static C runtime (`/MT`) and `/bigobj` (large object
 files, e.g. generated code).
 
-**Additional options:** FMI 2.0 `<SourceFiles>` only lists file names: when the sources need a preprocessor
+**Additional options:** FMI-2 `<SourceFiles>` only lists file names: when the sources need a preprocessor
 definition, an include directory or a library, give them with:
 
 | Option | Content | Example |
@@ -388,7 +388,7 @@ fmutool -input module.fmu -compile-sources -debug -output module-compiled.fmu
   recompiled on a Mac with Apple Silicon. Remove the binary first (e.g. with a zip tool) to force the compilation.
 - An FMU without list of its sources is not compiled: the sources to use (and the preprocessor definitions they
   need) cannot be guessed.
-- FMI 2.0 gives no library to link with nor preprocessor definition: when the compiler or the linker reports a
+- FMI-2 gives no library to link with nor preprocessor definition: when the compiler or the linker reports a
   missing symbol or definition, use the additional options above.
 - `compilerOptions` of `buildDescription.xml` are only used when they are written for the compiler in use (`gcc`,
   `clang` or `cl`).
@@ -450,7 +450,7 @@ fmucontainer -container container.csv:0.1
 # Build from JSON with FMUs in a specific directory
 fmucontainer -container assembly.json -fmu-directory ./my_fmus
 
-# FMI 3.0 with multi-threading and profiling
+# FMI-3 with multi-threading and profiling
 fmucontainer -container assembly.json -fmi 3 -mt -profile
 ```
 

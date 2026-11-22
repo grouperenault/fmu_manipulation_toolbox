@@ -48,9 +48,9 @@ def test_container_caches_values_set_by_the_importer(area_dir, fmi_version):
 
     messages = _simulate_with_debug_log("cache.fmu", stop_time=0.1, start_values={"gain": 2.5, "u": 1.25})
 
-    cached = [message for message in messages if message.startswith("[DEBUG] Cache ")]
-    assert any(message.endswith("= 2.5 (1 value(s))") for message in cached), cached
-    assert any(message.endswith("= 1.25 (1 value(s))") for message in cached), cached
+    cached = [message for message in messages if message.startswith("Cache ")]
+    assert any(message.endswith("= 2.5 (1 value(s)).") for message in cached), cached
+    assert any(message.endswith("= 1.25 (1 value(s)).") for message in cached), cached
 
 
 class _Container:

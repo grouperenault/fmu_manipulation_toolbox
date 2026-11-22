@@ -1,15 +1,15 @@
 """Replay of an experiment of FMI-LS-REF with the container runtime.
 
-The FMU is embedded in a temporary FMI-3.0 container (`FMUContainer`, whatever the FMI version of the FMU: the
-runtime embeds FMI-2.0 FMUs as well): one input per stimulus, one output per variable to record, the parameters as
-start values. The library of the container is then driven through its FMI-3.0 API (ctypes; the logger of FMI 2.0 is
+The FMU is embedded in a temporary FMI-3 container (`FMUContainer`, whatever the FMI version of the FMU: the
+runtime embeds FMI-2 FMUs as well): one input per stimulus, one output per variable to record, the parameters as
+start values. The library of the container is then driven through its FMI-3 API (ctypes; the logger of FMI-2 is
 variadic, which ctypes cannot read on every platform):
 at each communication point `t_k = start + k * step` (computed, not accumulated), the stimuli interpolated at `t_k`
 are set, the outputs are read and recorded at `t_k`, then the container steps to `t_k+1` (convention of fmpy and of
 the results of the Reference-FMUs: an output fed through follows its input at the same instant).
 When an embedded FMU asks to terminate the simulation, the container stops at the time reached: the simulation ends
 there, the outputs of this instant being the last ones recorded.
-An array output is recorded as one column per element, named as by the structured naming convention of FMI 3.0
+An array output is recorded as one column per element, named as by the structured naming convention of FMI-3
 (indices from 1, row-major order): `y[1]`, `y[2]`... or `m[1,1]`, `m[1,2]`...
 
 The simulation runs in a dedicated process (`multiprocessing`, `spawn`): a crash of the FMU or of the runtime, or a
@@ -52,7 +52,7 @@ class SimulationUnavailable(SimulationError):
 
 
 class SimulationUnsupported(SimulationError):
-    """An experiment that the temporary container cannot replay (a stimulus on a boolean input of an FMI-2.0 FMU)."""
+    """An experiment that the temporary container cannot replay (a stimulus on a boolean input of an FMI-2 FMU)."""
 
 
 @dataclass
@@ -133,7 +133,7 @@ def replay(fmu_filename: Path | str, experiment: Experiment, outputs: list[str],
 
     Raises:
         SimulationUnavailable: The container or the FMU has no library for the host platform.
-        SimulationUnsupported: A stimulus is on a boolean input of an FMI-2.0 FMU, which the FMI-3.0 container cannot
+        SimulationUnsupported: A stimulus is on a boolean input of an FMI-2 FMU, which the FMI-3 container cannot
             expose, or on an array input; an output is an array whose dimension is given by a structural parameter.
         SimulationError: The container cannot be built, the simulation fails, crashes or exceeds `timeout`.
     """
@@ -158,8 +158,8 @@ def _simulate(directory: Path, fmu_filename: Path, experiment: Experiment, outpu
         booleans = {port.get("name") for port in model_description.iter_ports() if port.fmi_type == "Boolean"}
         for name in stimuli.columns:
             if name in booleans:
-                raise SimulationUnsupported(f"the stimulus of the FMI-2.0 boolean '{name}' cannot be set through the "
-                                            f"FMI-3.0 container")
+                raise SimulationUnsupported(f"the stimulus of the FMI-2 boolean '{name}' cannot be set through the "
+                                            f"FMI-3 container")
     start_time, stop_time = experiment_times(experiment, model_description, references)
     if experiment.tolerance is not None:
         logger.info(f"Experiment '{experiment.name}': its tolerance ({experiment.tolerance}) is not used.")
@@ -331,7 +331,7 @@ def _build_container(fmus: Path, fmu_name: str, experiment: Experiment, outputs:
 
 
 # --------------------------------------------------------------------------- #
-#                      FMI-3.0 driver of the container                        #
+#                      FMI-3 driver of the container                        #
 # --------------------------------------------------------------------------- #
 #: C types of the FMI types of the ports, and the name of the function that sets or gets them.
 FMI3_TYPES = {
@@ -348,7 +348,7 @@ FMI3_LOG_MESSAGE = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_int, ctypes.
 
 
 class _Driver:
-    """FMI-3.0 Co-Simulation driver of an extracted container."""
+    """FMI-3 Co-Simulation driver of an extracted container."""
 
     def __init__(self, directory: Path):
         self.directory = directory

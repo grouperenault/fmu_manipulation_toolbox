@@ -31,8 +31,8 @@ class FMU:
             fmu.repack("module-stripped.fmu")
 
     Attributes:
-        FMI2_TYPES (tuple[str, ...]): FMI 2.0 scalar variable type names.
-        FMI3_TYPES (tuple[str, ...]): FMI 3.0 variable type names.
+        FMI2_TYPES (tuple[str, ...]): FMI-2 scalar variable type names.
+        FMI3_TYPES (tuple[str, ...]): FMI-3 variable type names.
         fmu_filename (str): Path to the original `.fmu` file.
         tmp_directory (str): Path to the temporary extraction directory.
         fmi_version (int | None): Detected FMI version (`2` or `3`), set
@@ -69,13 +69,13 @@ class FMU:
             with zipfile.ZipFile(self.fmu_filename) as zin:
                 zin.extractall(self.tmp_directory)
         except FileNotFoundError:
-            raise FMUError(f"'{self.fmu_filename}' does not exist") from None
+            raise FMUError(f"'{self.fmu_filename}' does not exist.") from None
         except (IsADirectoryError, PermissionError) as error:
-            raise FMUError(f"'{self.fmu_filename}' cannot be read: {error.strerror}") from None
+            raise FMUError(f"'{self.fmu_filename}' cannot be read: {error.strerror}.") from None
         except zipfile.BadZipFile:
-            raise FMUError(f"'{self.fmu_filename}' is not valid: not a ZIP archive") from None
+            raise FMUError(f"'{self.fmu_filename}' is not valid: not a ZIP archive.") from None
         if not os.path.isfile(self.descriptor_filename):
-            raise FMUError(f"'{self.fmu_filename}' is not valid: modelDescription.xml not found")
+            raise FMUError(f"'{self.fmu_filename}' is not valid: modelDescription.xml not found.")
 
     @property
     def model_description(self) -> ModelDescription:
@@ -115,7 +115,7 @@ class FMU:
 
     def _check_open(self):
         if self.closed:
-            raise FMUError(f"'{self.fmu_filename}' is closed")
+            raise FMUError(f"'{self.fmu_filename}' is closed.")
 
     def __enter__(self):
         return self
@@ -160,7 +160,7 @@ class FMU:
                 to ports with a causality in this list.
             types (list[str] | None): If set, only apply the operation to ports
                 of these types: the exact type (`Real`, `Float64`, `Int32`...) or,
-                on an FMI 3.0 FMU, an FMI 2.0 type for its family (`Real` selects
+                on an FMI-3 FMU, an FMI-2 type for its family (`Real` selects
                 `Float32` and `Float64`, `Integer` every integer type).
             variabilities (list[str] | None): If set, only apply the operation to
                 ports with a variability in this list. A port without `variability`
@@ -206,7 +206,7 @@ class Manipulation:
     place and writes it back. Everything the operation does not touch is kept
     as is (annotations, aliases, comments, namespaces...).
 
-    When ports are removed, the references to them are updated: FMI 2.0
+    When ports are removed, the references to them are updated: FMI-2
     `<ModelStructure>` indexes and `derivative` attributes are renumbered,
     entries and dependencies of `<ModelStructure>` that refer to removed ports
     are dropped.
@@ -217,7 +217,7 @@ class Manipulation:
     - every variable removed (empty `<ModelVariables>`, forbidden by the XSD);
     - a removed variable still referenced by a kept one (`derivative`,
       `previous`, `clocks`, `<Dimension valueReference>`);
-    - several variables (or FMI 3.0 aliases) with the same name.
+    - several variables (or FMI-3 aliases) with the same name.
 
     Attributes:
         operation (OperationAbstract): The operation being applied.
@@ -345,7 +345,7 @@ class Manipulation:
     # ------------------------------------------------------- Conformity checks
     @staticmethod
     def all_names(md: ModelDescription) -> list[str | None]:
-        """Names of variables and FMI 3.0 aliases, which must all be unique."""
+        """Names of variables and FMI-3 aliases, which must all be unique."""
         names = [variable.get("name") for variable in md.variables()]
         if md.fmi_version == 3:
             names += [alias.get("name") for alias in md.model_variables.iter("Alias")]
@@ -368,8 +368,9 @@ class Manipulation:
 
         broken = self.broken_references(md, variables, removed)
         if broken:
+            more = f" (and {len(broken) - 10} more)" if len(broken) > 10 else ""
             raise OperationError("The operation would remove variables that are still referenced: " +
-                                 "; ".join(broken[:10]) + (" ..." if len(broken) > 10 else ""))
+                                 "; ".join(broken[:10]) + more + ".")
 
         removed_ids = {id(element) for element in removed}
         kept_names = [variable.get("name") for variable in variables if id(variable) not in removed_ids]
@@ -384,7 +385,7 @@ class Manipulation:
         if duplicates:
             raise OperationError("The operation would give the same name to several variables: " +
                                  ", ".join(f"'{name}'" for name in duplicates[:10]) +
-                                 (" ..." if len(duplicates) > 10 else ""))
+                                 (f" (and {len(duplicates) - 10} more)" if len(duplicates) > 10 else "") + ".")
 
     @staticmethod
     def broken_references(md: ModelDescription, variables: list[ET.Element],
@@ -418,7 +419,7 @@ class Manipulation:
 
     # -------------------------------------------------------------- References
     def renumber_derivatives(self, md: ModelDescription):
-        """FMI 2.0: `derivative` is the 1-based index of the state variable."""
+        """FMI-2: `derivative` is the 1-based index of the state variable."""
         if md.fmi_version != 2 or self.current_port_number == len(self.port_translation):
             return  # nothing removed
         for variable in md.variables():
@@ -446,7 +447,7 @@ class Manipulation:
                         skipped.append(unknown)
                 self.remove_children(section, skipped)
                 if not any(child.tag == "Unknown" for child in section):
-                    logger.debug(f"Remove tag <{section.tag}> from modelDescription.xml")
+                    logger.debug(f"Remove tag <{section.tag}> from modelDescription.xml.")
                     structure.remove(section)
         else:
             skipped = []
@@ -465,11 +466,11 @@ class Manipulation:
             parent[:] = [child for child in parent if id(child) not in removed]
 
     def unknown_attrs(self, attrs):
-        """FMI 2.0: renumber an `<Unknown>` entry. Raises `ManipulationSkipTag` if its port is removed."""
+        """FMI-2: renumber an `<Unknown>` entry. Raises `ManipulationSkipTag` if its port is removed."""
         index = int(attrs['index'])
         new_index = self.port_translation[index-1]
         if new_index is None:
-            logger.warning(f"Removed port '{self.port_names_list[index-1]}' is involved in dependencies tree.")
+            logger.warning(f"Removed port '{self.port_names_list[index-1]}' is involved in the dependencies tree.")
             raise ManipulationSkipTag
 
         attrs['index'] = str(new_index)
@@ -480,13 +481,13 @@ class Manipulation:
             self.set_dependencies(attrs, kept)
 
     def handle_structure(self, section, attrs):
-        """FMI 3.0: filter a `<ModelStructure>` entry. Raises `ManipulationSkipTag` if its port is removed."""
+        """FMI-3: filter a `<ModelStructure>` entry. Raises `ManipulationSkipTag` if its port is removed."""
         self.operation.model_structure_attrs(section, attrs)
 
         try:
             vr = attrs['valueReference']
             if vr in self.port_removed_vr:
-                logger.warning(f"Removed port vr={vr} is involved in dependencies tree.")
+                logger.warning(f"Removed port with valueReference {vr} is involved in the dependencies tree.")
                 raise ManipulationSkipTag
         except KeyError:
             return
@@ -595,11 +596,11 @@ class OperationAbstract:
     def model_structure_attrs(self, section: str, attrs: dict[str, str]):
         """Called for each entry of the `<ModelStructure>` section.
 
-        For FMI 2.0, `section` is the name of the enclosing sub-section
+        For FMI-2, `section` is the name of the enclosing sub-section
         (`"Outputs"`, `"Derivatives"`, `"InitialUnknowns"`) and `attrs` holds the
         attributes of an `<Unknown>` element (1-based `index` of the variable).
 
-        For FMI 3.0, `section` is the name of the element itself
+        For FMI-3, `section` is the name of the element itself
         (`"Output"`, `"ContinuousStateDerivative"`, `"InitialUnknown"`,
         `"EventIndicator"`, `"ClockedState"`) and `attrs` holds its attributes
         (including `valueReference`).
@@ -780,9 +781,9 @@ class OperationRenameFromCSV(OperationRename):
                 for row in reader:
                     translations[row[0]] = row[1]
         except FileNotFoundError:
-            raise OperationError(f"file '{csv_filename}' is not found") from None
+            raise OperationError(f"File '{csv_filename}' is not found.") from None
         except IndexError:
-            raise OperationError(f"file '{csv_filename}' should contain two columns") from None
+            raise OperationError(f"File '{csv_filename}' should contain two columns.") from None
         super().__init__(translations)
 
 
@@ -969,7 +970,7 @@ class OperationRemoveSources(OperationAbstract):
 
     Strips the embedded C/C++ source files that some FMUs include for
     recompilation on the target platform, and the `<SourceFiles>` elements
-    (FMI 2.0) that list them. For FMI 3.0, the list of sources is
+    (FMI-2) that list them. For FMI-3, the list of sources is
     `sources/buildDescription.xml`, removed with the directory.
     """
 

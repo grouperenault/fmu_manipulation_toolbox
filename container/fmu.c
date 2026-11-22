@@ -13,7 +13,7 @@
 //#define DEBUG
 
 /*
- * FMI-importer supporting FMI-2.0 and FMI-3.0. FMUs are handled through fmu_t pointers.
+ * FMI-importer supporting FMI-2 and FMI-3. FMUs are handled through fmu_t pointers.
  */
 
 /* Shared per-type IO translation loops. Defined at file scope so the plain and
@@ -95,7 +95,7 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
 #endif
     const fmu_io_t* fmu_io = &fmu->fmu_io;
 #ifdef DEBUG
-        LOGGER_DEBUG("[DEBUG] Time=%e | fmu_set_inputs(%s)", fmu->container->time, fmu->name);
+        LOGGER_DEBUG("Time %e: fmu_set_inputs('%s').", fmu->container->time, fmu->name);
 #endif
 
     /* The values set by the importer on the container since the last synchronization of the FMU */
@@ -220,23 +220,23 @@ fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
     const fmu_io_t* fmu_io = &fmu->fmu_io;
 
 #ifdef DEBUG
-    LOGGER_DEBUG("[DEBUG] time=%e | fmu_set_clocked_inputs(fmu=%s)", fmu->container->time, fmu->name);
+    LOGGER_DEBUG("Time %e: fmu_set_clocked_inputs('%s').", fmu->container->time, fmu->name);
 #endif
 
 
-#define SET_CLOCKED_INPUT(variable, fmi_type, c_type)                                                       \
-    for (unsigned long i = 0; i < fmu_io->clocked_ ## variable .nb_in; i += 1) {                            \
-        fmu_clocked_port_t *clocked_port = &fmu_io->clocked_ ## variable .in[i];                            \
-        if (clocks[clocked_port->clock_vr]) {                                                               \
-            for(unsigned long j=0; j < clocked_port->translations_list.nb; j += 1) {                        \
-                const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr;         \
-                const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;           \
-                const unsigned int dimension = clocked_port->translations_list.translations[j].dimension;   \
+#define SET_CLOCKED_INPUT(variable, fmi_type, c_type)                                                               \
+    for (unsigned long i = 0; i < fmu_io->clocked_ ## variable .nb_in; i += 1) {                                    \
+        fmu_clocked_port_t *clocked_port = &fmu_io->clocked_ ## variable .in[i];                                    \
+        if (clocks[clocked_port->clock_vr]) {                                                                       \
+            for(unsigned long j=0; j < clocked_port->translations_list.nb; j += 1) {                                \
+                const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr;                 \
+                const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;                   \
+                const unsigned int dimension = clocked_port->translations_list.translations[j].dimension;           \
                 status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable .locals [local_vr], dimension); \
-                if (status != FMU_STATUS_OK)                                                                \
-                    return status;                                                                          \
-            }                                                                                               \
-        }                                                                                                   \
+                if (status != FMU_STATUS_OK)                                                                        \
+                    return status;                                                                                  \
+            }                                                                                                       \
+        }                                                                                                           \
     }
     /*
      * CLOCKED INPUTs
@@ -288,7 +288,7 @@ fmu_status_t fmu_get_outputs(const fmu_t* fmu) {
     fmu_status_t status = FMU_STATUS_OK;
 
 #ifdef DEBUG
-    LOGGER_DEBUG("[DEBUG] time=%e | fmu_get_outputs(fmu=%s)", fmu->container->time, fmu->name);
+    LOGGER_DEBUG("Time %e: fmu_get_outputs('%s').", fmu->container->time, fmu->name);
 #endif
 
     FOR_ALL_NUMERIC_TYPES(GET_OUTPUT)
@@ -305,7 +305,7 @@ fmu_status_t fmu_get_outputs(const fmu_t* fmu) {
 
             for(unsigned int j = 0; j < dimension; j += 1) {
                 if (fmu_string_copy(&container->strings.locals[local_vr + j], container->strings_tmp[j])) {
-                    LOGGER_ERROR("Cannot allocate memory for get output.");
+                    LOGGER_ERROR("Cannot allocate memory to get the outputs.");
                     return FMU_STATUS_ERROR;
                 }
             }
@@ -322,7 +322,7 @@ fmu_status_t fmu_get_outputs(const fmu_t* fmu) {
             for(unsigned int j=0; j < dimension; j += 1) {
                 if (fmu_binary_copy(&container->binaries.locals[local_vr + j], container->binaries_tmp[j],
                                     container->binaries_size_tmp[j])) {
-                    LOGGER_ERROR("Cannot allocate memory for get output.");
+                    LOGGER_ERROR("Cannot allocate memory to get the outputs.");
                     return FMU_STATUS_ERROR;
                 }
             }
@@ -337,7 +337,7 @@ fmu_status_t fmu_get_outputs(const fmu_t* fmu) {
 
 /*
  * Continuous Time Mode variants: exchange ONLY the continuous (real) couplings.
- * Per FMI-2.0 2.1.3, discrete variables (booleans/integers) may only be set/get
+ * Per FMI-2 §2.1.3, discrete variables (booleans/integers) may only be set/get
  * in Event or Initialization Mode; exchanging them in Continuous Time Mode is
  * illegal and corrupts the target FMU (e.g. a bounce "reset" edge detector).
  */
@@ -383,7 +383,7 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
     fmu_status_t status = FMU_STATUS_OK;
 
 #ifdef DEBUG
-    LOGGER_DEBUG("[DEBUG] time=%e | fmu_get_clocked_outputs(fmu=%s)", fmu->container->time, fmu->name);
+    LOGGER_DEBUG("Time %e: fmu_get_clocked_outputs('%s').", fmu->container->time, fmu->name);
 #endif
 
     for (size_t i = 0; i < fmu_io->clocks.out.nb; i += 1) {
@@ -393,7 +393,7 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
         if (status != FMU_STATUS_OK)
             return status;
 #ifdef DEBUG
-        LOGGER_DEBUG("[DEBUG] time=%e | fmu_get_clocked_outputs(fmu=%s): clock vr=%u is %s", fmu->container->time,
+        LOGGER_DEBUG("Time %e: fmu_get_clocked_outputs('%s'): the clock %u is %s.", fmu->container->time,
                      fmu->name, fmu_vr, container->clocks.locals[local_vr] ? "active" : "inactive");
 #endif
     }
@@ -402,19 +402,19 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
      * CLOCKED OUTPUTs
      */
 
-#define GET_CLOCKED_OUTPUT(variable, fmi_type, c_type)                                                      \
-    for (unsigned long i = 0; i < fmu_io->clocked_ ## variable .nb_out; i += 1) {                           \
-        fmu_clocked_port_t *clocked_port = &fmu_io->clocked_ ## variable .out[i];                           \
-        if (container->clocks.locals[clocked_port->clock_vr]) {                                                    \
-            for(unsigned long j=0; j < clocked_port->translations_list.nb; j += 1) {                        \
-                const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr;         \
-                const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;           \
-                const unsigned int dimension = clocked_port->translations_list.translations[j].dimension;   \
+#define GET_CLOCKED_OUTPUT(variable, fmi_type, c_type)                                                              \
+    for (unsigned long i = 0; i < fmu_io->clocked_ ## variable .nb_out; i += 1) {                                   \
+        fmu_clocked_port_t *clocked_port = &fmu_io->clocked_ ## variable .out[i];                                   \
+        if (container->clocks.locals[clocked_port->clock_vr]) {                                                     \
+            for(unsigned long j=0; j < clocked_port->translations_list.nb; j += 1) {                                \
+                const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr;                 \
+                const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;                   \
+                const unsigned int dimension = clocked_port->translations_list.translations[j].dimension;           \
                 status = fmuGet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable .locals [local_vr], dimension); \
-                if (status != FMU_STATUS_OK)                                                                \
-                    return status;                                                                          \
-            }                                                                                               \
-        }                                                                                                   \
+                if (status != FMU_STATUS_OK)                                                                        \
+                    return status;                                                                                  \
+            }                                                                                                       \
+        }                                                                                                           \
     }
 
     FOR_ALL_NUMERIC_TYPES(GET_CLOCKED_OUTPUT)
@@ -432,7 +432,7 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
                     return status;
                 for (unsigned int k = 0; k < dimension; k += 1) {
                     if (fmu_string_copy(&container->strings.locals[local_vr + k], container->strings_tmp[k])) {
-                        LOGGER_ERROR("Cannot allocate memory for get output.");
+                        LOGGER_ERROR("Cannot allocate memory to get the outputs.");
                         return FMU_STATUS_ERROR;
                     }
                 }
@@ -449,7 +449,7 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
                 const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;
                 const unsigned int dimension = clocked_port->translations_list.translations[j].dimension;
 #ifdef DEBUG
-                LOGGER_DEBUG("[DEBUG] time=%e | fmu_get_clocked_outputs(fmu=%s): fmi3GetBinary(vr=%u)",
+                LOGGER_DEBUG("Time %e: fmu_get_clocked_outputs('%s'): fmi3GetBinary(%u).",
                              fmu->container->time, fmu->name, fmu_vr);
 #endif
                 status = fmuGetBinary(fmu, &fmu_vr, 1, container->binaries_size_tmp, container->binaries_tmp,
@@ -458,14 +458,14 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
                     return status;
 #ifdef DEBUG
                 for (unsigned int k = 0; k < dimension; k += 1)
-                    LOGGER_DEBUG("[DEBUG] time=%e | fmu_get_clocked_outputs(fmu=%s): binary vr=%u [%u]: %zu bytes at %p",
+                    LOGGER_DEBUG("Time %e: fmu_get_clocked_outputs('%s'): binary %u [%u]: %zu bytes at %p.",
                                  fmu->container->time, fmu->name, fmu_vr, k, container->binaries_size_tmp[k],
                                  (const void *)container->binaries_tmp[k]);
 #endif
                 for (unsigned int k = 0; k < dimension; k += 1) {
                     if (fmu_binary_copy(&container->binaries.locals[local_vr + k], container->binaries_tmp[k],
                                         container->binaries_size_tmp[k])) {
-                        LOGGER_ERROR("Cannot allocate memory for get output.");
+                        LOGGER_ERROR("Cannot allocate memory to get the outputs.");
                         return FMU_STATUS_ERROR;
                     }
                 }
@@ -650,7 +650,7 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
                             fmu_kind_t kind) {
     const logger_t *logger = &container->logger;
 
-    LOGGER_DEBUG("FMU#%d: loading '%s" FMU_BIN_SUFFIXE "' from directory '%s' (FMI-%d, %s)",
+    LOGGER_DEBUG("FMU #%d: loading '%s" FMU_BIN_SUFFIXE "' from the directory '%s' (FMI-%d, %s).",
                  i, identifier, directory, fmi_version, (kind == FMU_KIND_ME) ? "ME" : "CS");
 
     fmu_t *fmu = &container->fmu[i];
@@ -690,7 +690,7 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     }
     switch(fmi_version) {
         case 2:
-            /* FMI-2.0: fmuResourceLocation is a URI (RFC 3986) */
+            /* FMI-2: fmuResourceLocation is a URI (RFC 3986) */
             if (path_join(library_filename, FMU_PATH_MAX_LEN, directory, "binaries", FMU2_BINDIR, identifier, NULL) ||
                 path_to_uri(resources, fmu->resource_dir, FMU_PATH_MAX_LEN)) {
                 LOGGER_ERROR("Path of the files of '%s' is too long.", name);
@@ -698,7 +698,7 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
             }
             break;
         case 3:
-            /* FMI-3.0: resourcePath is a file path with a trailing file separator, NULL without resources folder */
+            /* FMI-3: resourcePath is a file path with a trailing file separator, NULL without resources folder */
             if (path_join(library_filename, FMU_PATH_MAX_LEN, directory, "binaries", FMU3_BINDIR, identifier, NULL)) {
                 LOGGER_ERROR("Path of the files of '%s' is too long.", name);
                 return -1;
@@ -710,7 +710,7 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
             }
             break;
         default:
-            LOGGER_ERROR("Unsupported FMI-%d version.", fmi_version);
+            LOGGER_ERROR("Unsupported version FMI-%d.", fmi_version);
             return -1;
     }
     STRLCAT(library_filename, FMU_BIN_SUFFIXE, FMU_PATH_MAX_LEN);
@@ -720,7 +720,7 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
         return -2;
     
     if (fmu_map_functions(fmu, fmi_version, kind)) {
-        LOGGER_ERROR("missing API in %s", library_filename);
+        LOGGER_ERROR("Missing API in '%s'.", library_filename);
         return -3;
     }
 
@@ -738,10 +738,10 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
 
 void fmu_unload(fmu_t *fmu) {
     const logger_t *logger = &fmu->container->logger;
-    LOGGER_DEBUG("Unload FMU %s", fmu->name);
+    LOGGER_DEBUG("Unloading FMU '%s'.", fmu->name);
     /* and finally unload the library */
     if (library_unload(fmu->library)) {
-        LOGGER_ERROR("Cannot unload library for FMU '%s'.", fmu->name);
+        LOGGER_ERROR("Cannot unload the library of FMU '%s'.", fmu->name);
     }
     free(fmu->guid);
     free(fmu->name);
@@ -758,13 +758,13 @@ void fmu_unload(fmu_t *fmu) {
 
 /* Free a clocked port list: the per-entry translations arrays, then the
    array of port descriptors itself */
-#define FREE_CLOCKED_DATA(variable, fmi_type, c_type) {                             \
-    for (unsigned long _i = 0; _i < fmu->fmu_io.clocked_ ## variable .nb_in; _i++)  \
-        free(fmu->fmu_io.clocked_ ## variable .in[_i].translations_list.translations);\
-    free(fmu->fmu_io.clocked_ ## variable .in);                                     \
-    for (unsigned long _i = 0; _i < fmu->fmu_io.clocked_ ## variable .nb_out; _i++) \
-        free(fmu->fmu_io.clocked_ ## variable .out[_i].translations_list.translations);\
-    free(fmu->fmu_io.clocked_ ## variable .out);                                    \
+#define FREE_CLOCKED_DATA(variable, fmi_type, c_type) {                                 \
+    for (unsigned long _i = 0; _i < fmu->fmu_io.clocked_ ## variable .nb_in; _i++)      \
+        free(fmu->fmu_io.clocked_ ## variable .in[_i].translations_list.translations);  \
+    free(fmu->fmu_io.clocked_ ## variable .in);                                         \
+    for (unsigned long _i = 0; _i < fmu->fmu_io.clocked_ ## variable .nb_out; _i++)     \
+        free(fmu->fmu_io.clocked_ ## variable .out[_i].translations_list.translations); \
+    free(fmu->fmu_io.clocked_ ## variable .out);                                        \
 }
 
     FOR_ALL_NUMERIC_TYPES(FREE_FMU_DATA)
@@ -800,13 +800,13 @@ fmu_status_t fmuGet ## fmi_type(const fmu_t *fmu, const fmu_vr_t vr[], size_t nv
     if (fmu->fmi_version == FMU_2) {                                                                                \
         fmi2Status status2 = fmu->fmi_functions.version_2. fmi2_function (fmu->component, vr, nvr, value);          \
         if (status2 != fmi2OK) {                                                                                    \
-            LOGGER_ERROR("%s: fmuGet" #fmi_type " status=%d", fmu->name, status2);                                  \
+            LOGGER_ERROR("FMU '%s': fmuGet" #fmi_type " failed (status %d).", fmu->name, status2);                  \
             status = FMU_STATUS_ERROR;                                                                              \
         }                                                                                                           \
     } else {                                                                                                        \
         fmi3Status status3 = fmu->fmi_functions.version_3. fmi3_function (fmu->component, vr, nvr, value, nvalues); \
         if (status3 != fmi3OK) {                                                                                    \
-            LOGGER_ERROR("%s: fmuGet" #fmi_type " status=%d", fmu->name, status3);                                  \
+            LOGGER_ERROR("FMU '%s': fmuGet" #fmi_type " failed (status %d).", fmu->name, status3);                  \
             status = FMU_STATUS_ERROR;                                                                              \
         }                                                                                                           \
     }                                                                                                               \
@@ -821,12 +821,12 @@ fmu_status_t fmuGet ## fmi_type(const fmu_t *fmu, const fmu_vr_t vr[], size_t nv
     fmu_status_t status = FMU_STATUS_OK;                                                                            \
                                                                                                                     \
     if (fmu->fmi_version == FMU_2) {                                                                                \
-        LOGGER_ERROR("%s: fmuGet" #fmi_type " not supported.", fmu->name);                                          \
+        LOGGER_ERROR("FMU '%s': fmuGet" #fmi_type " is not supported.", fmu->name);                                 \
         status = FMU_STATUS_ERROR;                                                                                  \
     } else {                                                                                                        \
         fmi3Status status3 = fmu->fmi_functions.version_3. fmi3_function (fmu->component, vr, nvr, value, nvalues); \
         if (status3 != fmi3OK) {                                                                                    \
-            LOGGER_ERROR("%s: fmuGet" #fmi_type " status=%d", fmu->name, status3);                                  \
+            LOGGER_ERROR("FMU '%s': fmuGet" #fmi_type " failed (status %d).", fmu->name, status3);                  \
             status = FMU_STATUS_ERROR;                                                                              \
         }                                                                                                           \
     }                                                                                                               \
@@ -844,11 +844,11 @@ fmu_status_t fmuGet ## fmi_type(const fmu_t *fmu, const fmu_vr_t vr[], size_t nv
     if (fmu->fmi_version == FMU_2) {                                                                                \
         fmi2Status status2 = fmu->fmi_functions.version_2. fmi2_function (fmu->component, vr, nvr, value);          \
         if (status2 != fmi2OK) {                                                                                    \
-            LOGGER_ERROR("%s: fmuGet" #fmi_type " status=%d", fmu->name, status2);                                  \
+            LOGGER_ERROR("FMU '%s': fmuGet" #fmi_type " failed (status %d).", fmu->name, status2);                  \
             status = FMU_STATUS_ERROR;                                                                              \
         }                                                                                                           \
     } else {                                                                                                        \
-        LOGGER_ERROR("%s: fmuGet" #fmi_type " not supported.", fmu->name);                                          \
+        LOGGER_ERROR("FMU '%s': fmuGet" #fmi_type " is not supported.", fmu->name);                                 \
         status = FMU_STATUS_ERROR;                                                                                  \
     }                                                                                                               \
                                                                                                                     \
@@ -882,12 +882,12 @@ fmu_status_t fmuGetBinary(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, siz
     fmu_status_t status = FMU_STATUS_OK;
 
     if (fmu->fmi_version == FMU_2) {
-        LOGGER_ERROR("%s: fmuGetBinary not supported.", fmu->name);
+        LOGGER_ERROR("FMU '%s': fmuGetBinary is not supported.", fmu->name);
         status = FMU_STATUS_ERROR;
     } else {
         fmi3Status status3 = fmu->fmi_functions.version_3.fmi3GetBinary(fmu->component, vr, nvr, size, value, nvalues);
         if (status3 != fmi3OK) {
-            LOGGER_ERROR("%s: fmuGetBinary status=%d", fmu->name, status3);
+            LOGGER_ERROR("FMU '%s': fmuGetBinary failed (status %d).", fmu->name, status3);
             status = FMU_STATUS_ERROR;
         }
     }
@@ -900,12 +900,12 @@ fmu_status_t fmuGetClock(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, bool
     fmu_status_t status = FMU_STATUS_OK;
 
     if (fmu->fmi_version == FMU_2) {
-        LOGGER_ERROR("%s: fmuGetClock not supported.", fmu->name);
+        LOGGER_ERROR("FMU '%s': fmuGetClock is not supported.", fmu->name);
         status = FMU_STATUS_ERROR;
     } else {
         fmi3Status status3 = fmu->fmi_functions.version_3.fmi3GetClock(fmu->component, vr, nvr, value);
         if (status3 != fmi3OK) {
-            LOGGER_ERROR("%s: fmuGetClock status=%d", fmu->name, status3);
+            LOGGER_ERROR("FMU '%s': fmuGetClock failed (status %d).", fmu->name, status3);
             status = FMU_STATUS_ERROR;
         }
     }
@@ -921,13 +921,13 @@ fmu_status_t fmuSet ## fmi_type(const fmu_t *fmu, const fmu_vr_t vr[], size_t nv
     if (fmu->fmi_version == FMU_2) {                                                                                        \
         fmi2Status status2 = fmu->fmi_functions.version_2. fmi2_function (fmu->component, vr, nvr, value);                  \
         if (status2 != fmi2OK) {                                                                                            \
-            LOGGER_ERROR("%s: fmuSet" #fmi_type " status=%d", fmu->name, status2);                                          \
+            LOGGER_ERROR("FMU '%s': fmuSet" #fmi_type " failed (status %d).", fmu->name, status2);                          \
             status = FMU_STATUS_ERROR;                                                                                      \
         }                                                                                                                   \
     } else {                                                                                                                \
         fmi3Status status3 = fmu->fmi_functions.version_3. fmi3_function (fmu->component, vr, nvr, value, nvalues);         \
         if (status3 != fmi3OK) {                                                                                            \
-            LOGGER_ERROR("%s: fmuSet" #fmi_type " status=%d", fmu->name, status3);                                          \
+            LOGGER_ERROR("FMU '%s': fmuSet" #fmi_type " failed (status %d).", fmu->name, status3);                          \
             status = FMU_STATUS_ERROR;                                                                                      \
         }                                                                                                                   \
     }                                                                                                                       \
@@ -942,12 +942,12 @@ fmu_status_t fmuSet ## fmi_type(const fmu_t *fmu, const fmu_vr_t vr[], size_t nv
     fmu_status_t status = FMU_STATUS_OK;                                                                                    \
                                                                                                                             \
     if (fmu->fmi_version == FMU_2) {                                                                                        \
-        LOGGER_ERROR("%s: fmuSet" #fmi_type " not supported.", fmu->name);                                                  \
+        LOGGER_ERROR("FMU '%s': fmuSet" #fmi_type " is not supported.", fmu->name);                                         \
         status = FMU_STATUS_ERROR;                                                                                          \
     } else {                                                                                                                \
         fmi3Status status3 = fmu->fmi_functions.version_3. fmi3_function (fmu->component, vr, nvr, value, nvalues);         \
         if (status3 != fmi3OK) {                                                                                            \
-            LOGGER_ERROR("%s: fmuSet" #fmi_type " tatus=%d", fmu->name, status3);                                           \
+            LOGGER_ERROR("FMU '%s': fmuSet" #fmi_type " failed (status %d).", fmu->name, status3);                          \
             status = FMU_STATUS_ERROR;                                                                                      \
         }                                                                                                                   \
     }                                                                                                                       \
@@ -965,11 +965,11 @@ fmu_status_t fmuSet ## fmi_type(const fmu_t *fmu, const fmu_vr_t vr[], size_t nv
     if (fmu->fmi_version == FMU_2) {                                                                                        \
         fmi2Status status2 = fmu->fmi_functions.version_2. fmi2_function (fmu->component, vr, nvr, value);                  \
         if (status2 != fmi2OK) {                                                                                            \
-            LOGGER_ERROR("%s: fmuSet" #fmi_type " status=%d", fmu->name, status2);                                          \
+            LOGGER_ERROR("FMU '%s': fmuSet" #fmi_type " failed (status %d).", fmu->name, status2);                          \
             status = FMU_STATUS_ERROR;                                                                                      \
         }                                                                                                                   \
     } else {                                                                                                                \
-        LOGGER_ERROR("%s: fmuSet" #fmi_type " not supported.", fmu->name);                                                  \
+        LOGGER_ERROR("FMU '%s': fmuSet" #fmi_type " is not supported.", fmu->name);                                         \
         status = FMU_STATUS_ERROR;                                                                                          \
     }                                                                                                                       \
                                                                                                                             \
@@ -1002,12 +1002,12 @@ fmu_status_t fmuSetBinary(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, con
     fmu_status_t status = FMU_STATUS_OK;
 
     if (fmu->fmi_version == FMU_2) {
-        LOGGER_ERROR("%s: fmuSetBinary not supported.", fmu->name);
+        LOGGER_ERROR("FMU '%s': fmuSetBinary is not supported.", fmu->name);
         status = FMU_STATUS_ERROR;
     } else {
         fmi3Status status3 = fmu->fmi_functions.version_3.fmi3SetBinary(fmu->component, vr, nvr, size, value, nvalues);
         if (status3 != fmi3OK) {
-            LOGGER_ERROR("%s: fmuSetBinary status=%d", fmu->name, status3);
+            LOGGER_ERROR("FMU '%s': fmuSetBinary failed (status %d).", fmu->name, status3);
             status = FMU_STATUS_ERROR;
         }
     }
@@ -1021,16 +1021,16 @@ fmu_status_t fmuSetClock(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, cons
 
 #ifdef DEBUG
     for (size_t i = 0; i < nvr; i += 1)
-        LOGGER_DEBUG("[DEBUG] time=%e | fmuSetClock(fmu=%s, vr=%u, value=%d)", fmu->container->time, fmu->name, vr[i],
+        LOGGER_DEBUG("Time %e: fmuSetClock('%s', %u, %d).", fmu->container->time, fmu->name, vr[i],
                      value[i]);
 #endif
     if (fmu->fmi_version == FMU_2) {
-        LOGGER_ERROR("%s: fmuSetClock not supported.", fmu->name);
+        LOGGER_ERROR("FMU '%s': fmuSetClock is not supported.", fmu->name);
         status = FMU_STATUS_ERROR;
     } else {
         fmi3Status status3 = fmu->fmi_functions.version_3.fmi3SetClock(fmu->component, vr, nvr, value);
         if (status3 != fmi3OK) {
-            LOGGER_ERROR("%s: fmuSetClock status=%d", fmu->name, status3);
+            LOGGER_ERROR("FMU '%s': fmuSetClock failed (status %d).", fmu->name, status3);
             status = FMU_STATUS_ERROR;
         }
     }
@@ -1056,17 +1056,17 @@ fmu_status_t fmuUpdateDiscreteStates(fmu_t *fmu, bool *discreteStatesNeedUpdate)
     if ((fmu->kind == FMU_KIND_CS) && (! fmu->support_event))
         return FMU_STATUS_OK;
 
-    /* Only ME is supported in FMI-2.0, where the function is named differently. */
+    /* Only ME is supported in FMI-2, where the function is named differently. */
     if ((fmu->kind == FMU_KIND_ME) && (fmu->fmi_version == 2)) {
         fmi2EventInfo info = { fmi2False, fmi2False, fmi2False, fmi2False, fmi2False, 0.0 };
         fmi2Status status2 = fmu->fmi_functions.version_2.fmi2NewDiscreteStates(fmu->component, &info);
 
         if (status2 != fmi2OK) {
-            LOGGER_ERROR("Cannot update discrete states for '%s'", fmu->name);
+            LOGGER_ERROR("Cannot update discrete states for '%s'.", fmu->name);
             return FMU_STATUS_ERROR;
         }
         if (info.terminateSimulation) {
-            LOGGER_WARNING("FMU '%s' requested to stop simulation.", fmu->name);
+            LOGGER_WARNING("FMU '%s' requested to stop the simulation.", fmu->name);
             fmu->container->terminate_requested = true;
         }
 
@@ -1079,7 +1079,7 @@ fmu_status_t fmuUpdateDiscreteStates(fmu_t *fmu, bool *discreteStatesNeedUpdate)
     }
 
 #ifdef DEBUG
-    LOGGER_DEBUG("[DEBUG] time=%e | fmi3UpdateDiscreteStates(%s)", fmu->container->time, fmu->name);
+    LOGGER_DEBUG("Time %e: fmi3UpdateDiscreteStates('%s').", fmu->container->time, fmu->name);
 #endif
     status = fmu->fmi_functions.version_3.fmi3UpdateDiscreteStates(fmu->component,
             discreteStatesNeedUpdate,
@@ -1090,17 +1090,17 @@ fmu_status_t fmuUpdateDiscreteStates(fmu_t *fmu, bool *discreteStatesNeedUpdate)
             &nextEventTime);
 
 #ifdef DEBUG
-    LOGGER_DEBUG("[DEBUG] time=%e | fmuUpdateDiscreteStates(%s): discreteStatesNeedUpdate=%d, terminateSimulation=%d, nominalsOfContinuousStatesChanged=%d, valuesOfContinuousStatesChanged=%d nextEventTimeDefined=%d", 
+    LOGGER_DEBUG("Time %e: fmuUpdateDiscreteStates('%s'): discreteStatesNeedUpdate=%d, terminateSimulation=%d, nominalsOfContinuousStatesChanged=%d, valuesOfContinuousStatesChanged=%d, nextEventTimeDefined=%d.", 
         fmu->container->time, fmu->name,
         *discreteStatesNeedUpdate, terminateSimulation, nominalsOfContinuousStatesChanged, valuesOfContinuousStatesChanged, nextEventTimeDefined);
 #endif
     if (status != fmi3OK) {
-        LOGGER_ERROR("Cannot update discrete states for '%s'", fmu->name);
+        LOGGER_ERROR("Cannot update discrete states for '%s'.", fmu->name);
         return FMU_STATUS_ERROR;
     }
 
     if (terminateSimulation) {
-        LOGGER_WARNING("FMU '%s' requested to stop simulation.", fmu->name);
+        LOGGER_WARNING("FMU '%s' requested to stop the simulation.", fmu->name);
         fmu->container->terminate_requested = true;
     }
 
@@ -1116,20 +1116,20 @@ fmu_status_t fmuUpdateDiscreteStates(fmu_t *fmu, bool *discreteStatesNeedUpdate)
                        M O D E L   E X C H A N G E
 ----------------------------------------------------------------------------*/
 
-/* Thin FMI-2/3 dispatchers used by the ME solver in solver.c. */
+/* Thin FMI-2/FMI-3 dispatchers used by the ME solver in solver.c. */
 
 fmu_status_t fmuSetTime(fmu_t *fmu, double t) {
     const logger_t *logger = &fmu->container->logger;
     if (fmu->fmi_version == 2) {
         fmi2Status status = fmu->fmi_functions.version_2.fmi2SetTime(fmu->component, t);
         if (status != fmi2OK) {
-            LOGGER_ERROR("Cannot set time for '%s'", fmu->name);
+            LOGGER_ERROR("Cannot set time for '%s'.", fmu->name);
             return FMU_STATUS_ERROR;
         }
     } else {
         fmi3Status status = fmu->fmi_functions.version_3.fmi3SetTime(fmu->component, t);
         if (status != fmi3OK) {
-            LOGGER_ERROR("Cannot set time for '%s'", fmu->name);
+            LOGGER_ERROR("Cannot set time for '%s'.", fmu->name);
             return FMU_STATUS_ERROR;
         }
     }
@@ -1145,13 +1145,13 @@ fmu_status_t fmuSetContinuousStates(fmu_t *fmu, const double *x, size_t nx) {
     if (fmu->fmi_version == 2) {
         fmi2Status status = fmu->fmi_functions.version_2.fmi2SetContinuousStates(fmu->component, x, nx);
         if (status != fmi2OK) {
-            LOGGER_ERROR("Cannot set continuous states for '%s'", fmu->name);
+            LOGGER_ERROR("Cannot set continuous states for '%s'.", fmu->name);
             return FMU_STATUS_ERROR;
         }
     } else {
         fmi3Status status = fmu->fmi_functions.version_3.fmi3SetContinuousStates(fmu->component, x, nx);
         if (status != fmi3OK) {
-            LOGGER_ERROR("Cannot set continuous states for '%s'", fmu->name);
+            LOGGER_ERROR("Cannot set continuous states for '%s'.", fmu->name);
             return FMU_STATUS_ERROR;
         }
     }
@@ -1168,13 +1168,13 @@ fmu_status_t fmuGetContinuousStates(fmu_t *fmu, double *x, size_t nx) {
     if (fmu->fmi_version == 2) {
         fmi2Status status = fmu->fmi_functions.version_2.fmi2GetContinuousStates(fmu->component, x, nx);
         if (status != fmi2OK) {
-            LOGGER_ERROR("Cannot get continuous states for '%s'", fmu->name);
+            LOGGER_ERROR("Cannot get continuous states for '%s'.", fmu->name);
             return FMU_STATUS_ERROR;
         }
     } else {
         fmi3Status status = fmu->fmi_functions.version_3.fmi3GetContinuousStates(fmu->component, x, nx);
         if (status != fmi3OK) {
-            LOGGER_ERROR("Cannot get continuous states for '%s'", fmu->name);
+            LOGGER_ERROR("Cannot get continuous states for '%s'.", fmu->name);
             return FMU_STATUS_ERROR;
         }
     }
@@ -1191,13 +1191,13 @@ fmu_status_t fmuGetContinuousStateDerivatives(fmu_t *fmu, double *dx, size_t nx)
     if (fmu->fmi_version == 2) {
         fmi2Status status = fmu->fmi_functions.version_2.fmi2GetDerivatives(fmu->component, dx, nx);
         if (status != fmi2OK) {
-            LOGGER_ERROR("Cannot get continuous state derivatives for '%s'", fmu->name);
+            LOGGER_ERROR("Cannot get continuous state derivatives for '%s'.", fmu->name);
             return FMU_STATUS_ERROR;
         }
     } else {
         fmi3Status status = fmu->fmi_functions.version_3.fmi3GetContinuousStateDerivatives(fmu->component, dx, nx);
         if (status != fmi3OK) {
-            LOGGER_ERROR("Cannot get continuous state derivatives for '%s'", fmu->name);
+            LOGGER_ERROR("Cannot get continuous state derivatives for '%s'.", fmu->name);
             return FMU_STATUS_ERROR;
         }
     }
@@ -1213,13 +1213,13 @@ fmu_status_t fmuGetEventIndicators(fmu_t *fmu, double *z, size_t nz) {
     if (fmu->fmi_version == 2) {
         fmi2Status status = fmu->fmi_functions.version_2.fmi2GetEventIndicators(fmu->component, z, nz);
         if (status != fmi2OK) {
-            LOGGER_ERROR("Cannot get event indicators for '%s'", fmu->name);
+            LOGGER_ERROR("Cannot get event indicators for '%s'.", fmu->name);
             return FMU_STATUS_ERROR;
         }
     } else {
         fmi3Status status = fmu->fmi_functions.version_3.fmi3GetEventIndicators(fmu->component, z, nz);
         if (status != fmi3OK) {
-            LOGGER_ERROR("Cannot get event indicators for '%s'", fmu->name);
+            LOGGER_ERROR("Cannot get event indicators for '%s'.", fmu->name);
             return FMU_STATUS_ERROR;
         }
     }
@@ -1238,7 +1238,7 @@ fmu_status_t fmuCompletedIntegratorStep(fmu_t *fmu, bool *enter_event_mode) {
             fmu->component, fmi2True, &enter, &terminate);
 
         if (status != fmi2OK) {
-            LOGGER_ERROR("Cannot complete integrator step for '%s'", fmu->name);
+            LOGGER_ERROR("Cannot complete integrator step for '%s'.", fmu->name);
             return FMU_STATUS_ERROR;
         }
 
@@ -1257,7 +1257,7 @@ fmu_status_t fmuCompletedIntegratorStep(fmu_t *fmu, bool *enter_event_mode) {
         fmi3Status status = fmu->fmi_functions.version_3.fmi3CompletedIntegratorStep(
             fmu->component, fmi3True, &enter, &terminate);
         if (status != fmi3OK) {
-            LOGGER_ERROR("Cannot complete integrator step for '%s'", fmu->name);
+            LOGGER_ERROR("Cannot complete integrator step for '%s'.", fmu->name);
             return FMU_STATUS_ERROR;
         } 
     
@@ -1277,13 +1277,13 @@ fmu_status_t fmuEnterContinuousTimeMode(fmu_t *fmu) {
     if (fmu->fmi_version == 2) {
         fmi2Status status = fmu->fmi_functions.version_2.fmi2EnterContinuousTimeMode(fmu->component);
         if (status != fmi2OK) {
-            LOGGER_ERROR("Cannot enter continuous time mode for '%s'", fmu->name);
+            LOGGER_ERROR("Cannot enter Continuous Time Mode for '%s'.", fmu->name);
             return FMU_STATUS_ERROR;
         }
     } else {
         fmi3Status status = fmu->fmi_functions.version_3.fmi3EnterContinuousTimeMode(fmu->component);
         if (status != fmi3OK) {
-            LOGGER_ERROR("Cannot enter continuous time mode for '%s'", fmu->name);
+            LOGGER_ERROR("Cannot enter Continuous Time Mode for '%s'.", fmu->name);
             return FMU_STATUS_ERROR;
         }
     }
@@ -1316,7 +1316,7 @@ fmu_status_t fmuDoStep(fmu_t *fmu,
         if ((status2 == fmi2OK) || (status2 == fmi2Warning))
             status = FMU_STATUS_OK;
         else if (status2 == fmi2Discard) {
-            /* FMI-2.0: an FMU that asks to terminate the simulation discards its step and tells it by fmi2Terminated. */
+            /* FMI-2: an FMU that asks to terminate the simulation discards its step and tells it by fmi2Terminated. */
             fmi2Boolean terminated = fmi2False;
             if ((fmuGetBooleanStatus(fmu, fmi2Terminated, &terminated) == FMU_STATUS_OK) && terminated) {
                 LOGGER_WARNING("FMU '%s' requested to end the simulation.", fmu->name);
@@ -1410,7 +1410,7 @@ fmu_status_t fmuSetupExperiment(const fmu_t *fmu, double start_time) {
         if ((status2 == fmi2OK) || (status2 == fmi2Warning))
             status = FMU_STATUS_OK;
     } else {
-        /* No such API in FMI-3.0 */
+        /* No such API in FMI-3 */
         status = FMU_STATUS_OK;
     }
 
@@ -1601,7 +1601,7 @@ fmu_status_t fmuEnterEventMode(const fmu_t *fmu) {
             : (fmu->fmi_functions.version_3.fmi3EnterEventMode(fmu->component) == fmi3OK);
 
         if (! ok) {
-            LOGGER_ERROR("Cannot enter in Event mode for fmu %s", fmu->name);
+            LOGGER_ERROR("Cannot enter Event Mode for '%s'.", fmu->name);
             return FMU_STATUS_ERROR;
         }
         return FMU_STATUS_OK;
@@ -1610,7 +1610,7 @@ fmu_status_t fmuEnterEventMode(const fmu_t *fmu) {
     if (fmu->support_event) {
         fmi3Status status = fmu->fmi_functions.version_3.fmi3EnterEventMode(fmu->component);
         if (status != fmi3OK) {
-            LOGGER_ERROR("Cannot enter in Event mode for fmu %s", fmu->name);
+            LOGGER_ERROR("Cannot enter Event Mode for '%s'.", fmu->name);
             return FMU_STATUS_ERROR;
         }
     }
@@ -1624,7 +1624,7 @@ fmu_status_t fmuEnterStepMode(const fmu_t *fmu) {
     if (fmu->support_event) {
         fmi3Status status = fmu->fmi_functions.version_3.fmi3EnterStepMode(fmu->component);
         if (status != fmi3OK) {
-            LOGGER_ERROR("Cannot enter step mode for %s", fmu->name);
+            LOGGER_ERROR("Cannot enter Step Mode for '%s'.", fmu->name);
             return FMU_STATUS_ERROR;
         }
     }
@@ -1644,7 +1644,7 @@ fmu_status_t fmuGetIntervalDecimal(const fmu_t *fmu, const fmu_vr_t vr[], size_t
         vr, nvr, interval, (fmi3IntervalQualifier *)qualifier);
 
     if (status != fmi3OK) {
-        LOGGER_ERROR("Cannot GetIntervalDecimal for FMU  '%s'", fmu->name);
+        LOGGER_ERROR("Cannot GetIntervalDecimal for FMU '%s'.", fmu->name);
         return FMU_STATUS_ERROR;
     }
     
@@ -1663,7 +1663,7 @@ fmu_status_t fmuGetShiftDecimal(const fmu_t *fmu, const fmu_vr_t vr[], size_t nv
     }
 
     if (fmu->fmi_functions.version_3.fmi3GetShiftDecimal(fmu->component, vr, nvr, shift) != fmi3OK) {
-        LOGGER_ERROR("Cannot GetShiftDecimal for FMU  '%s'", fmu->name);
+        LOGGER_ERROR("Cannot GetShiftDecimal for FMU '%s'.", fmu->name);
         return FMU_STATUS_ERROR;
     }
 

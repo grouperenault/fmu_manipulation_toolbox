@@ -5,6 +5,7 @@ Each test runs in an isolated copy of
 its data area (see the ``area_dir`` fixture) and drives the CLI by setting
 ``sys.argv`` (restored automatically by the ``clean_argv`` fixture).
 """
+import logging
 import sys
 from pathlib import Path
 
@@ -84,6 +85,32 @@ def test_fmutool_only_type_and_variability(area_dir):
     rows = [row.split(";") for row in Path("cli-fixed-reals.csv").read_text().splitlines()[1:]]
     assert rows
     assert all(row[4] == "fixed" and row[5] == "Real" for row in rows)
+
+
+@pytest.mark.area("operations")
+def test_fmutool_messages(area_dir, caplog):
+    """The progress messages are sentences, without level nor tag in their text (docs/developer/logging.md)."""
+    caplog.set_level(logging.DEBUG, logger="fmu_manipulation_toolbox")
+    sys.argv = ["fmutool", "-input", "bouncing_ball.fmu", "-only-parameters", "-only-inputs", "-only-type", "Real",
+                "-summary", "-output", "cli-messages.fmu"]
+    fmutool()
+    infos = [record.getMessage() for record in caplog.records if record.levelno == logging.INFO]
+    for message in ("Reading 'bouncing_ball.fmu'.",
+                    "Operations restricted to causality 'parameter', 'input'.",
+                    "Operations restricted to type 'Real'.",
+                    "Operation: FMU Summary.",
+                    "Writing 'cli-messages.fmu'."):
+        assert message in infos
+    assert not any(record.getMessage().startswith(("READING", "WRITING", "INFO ")) for record in caplog.records)
+
+
+@pytest.mark.area("operations")
+def test_fmutool_without_output(area_dir, caplog):
+    caplog.set_level(logging.DEBUG, logger="fmu_manipulation_toolbox")
+    sys.argv = ["fmutool", "-input", "bouncing_ball.fmu", "-summary"]
+    fmutool()
+    assert ("Modified FMU is not saved. If necessary, use the '-output' option." in
+            [record.getMessage() for record in caplog.records if record.levelno == logging.INFO])
 
 
 @pytest.mark.area("containers/arch")

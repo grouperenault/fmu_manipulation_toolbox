@@ -47,7 +47,7 @@ class PathPolicy:
         else:
             root = Path(root).expanduser()
             if not root.is_dir():
-                raise PathValidationError(f"Allowed root is not a directory: '{root}'")
+                raise PathValidationError(f"Allowed root '{root}' is not a directory.")
             self.root = root.resolve()
 
     @classmethod
@@ -62,7 +62,7 @@ class PathPolicy:
         try:
             resolved = Path(path).expanduser().resolve()
         except (OSError, RuntimeError) as exc:  # e.g. symlink loop
-            raise PathValidationError(f"Invalid path '{path}': {exc}") from exc
+            raise PathValidationError(f"Invalid path '{path}': {exc}.") from exc
 
         if self.root is not None and not resolved.is_relative_to(self.root):
             raise PathValidationError(
@@ -131,7 +131,7 @@ class PathPolicy:
 
         parent = resolved.parent
         if not parent.is_dir():
-            raise PathValidationError(f"Directory does not exist: '{parent}'")
+            raise PathValidationError(f"Directory '{parent}' does not exist.")
 
         if resolved.exists() and not overwrite:
             raise PathValidationError(

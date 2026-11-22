@@ -20,7 +20,7 @@ static bool is_separator(char c) {
 
 
 /*
- * Per the FMI 2.0 standard, fmuResourceLocation is a URI following RFC 3986: "file:///C:/temp/MyFMU/resources" or
+ * Per the FMI-2 standard, fmuResourceLocation is a URI following RFC 3986: "file:///C:/temp/MyFMU/resources" or
  * "file:/C:/temp/MyFMU/resources" (with or without the authority component).
  */
 int path_from_uri(const char *uri, char *dest, size_t size) {

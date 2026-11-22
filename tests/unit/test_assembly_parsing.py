@@ -69,9 +69,9 @@ def test_csv_malformed_lines_are_skipped_but_parsing_continues(tmp_path, caplog)
 
     # The two valid FMU rules survive; the three invalid lines are dropped.
     assert root.fmu_names_list == ["good.fmu", "second.fmu"]
-    assert "Missing FMU information" in caplog.text
-    assert "unexpected rule" in caplog.text
-    assert "expecting 5 columns" in caplog.text
+    assert "Line #4: Missing FMU information. Line skipped." in caplog.messages
+    assert "Line #5: Unexpected rule 'BOGUS'. Line skipped." in caplog.messages
+    assert "Line #6: expecting 5 columns. Line skipped." in caplog.messages
 
 
 # --------------------------------------------------------------------------- #

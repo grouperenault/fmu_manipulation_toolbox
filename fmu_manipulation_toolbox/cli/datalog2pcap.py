@@ -60,7 +60,7 @@ class DatalogConverter:
                         if match:
                             bus_types[f"{Path(fmu_name).stem.lower()}.{port.get('name')}"] = match.group(1).lower()
         except (OSError, KeyError, ValueError, IndexError, zipfile.BadZipFile, ModelDescriptionError) as error:
-            raise DatalogError(f"Cannot read the container '{self.fmu_filename}': {error}") from error
+            raise DatalogError(f"Cannot read the container '{self.fmu_filename}': {error}.") from error
         return bus_types
 
     @staticmethod
@@ -71,7 +71,7 @@ class DatalogConverter:
                    struct.pack("<I", total_length))
 
     def open_pcap(self):
-        logger.info(f"Creating PCAPNG file '{self.pcap_filename}'...")
+        logger.info(f"Creating the PCAPNG file '{self.pcap_filename}'.")
         file = open(self.pcap_filename, "wb")
         # Section Header Block: byte-order magic, version 1.0, section length not specified
         self.write_block(file, 0x0A0D0D0A, struct.pack("<IHHq", 0x1A2B3C4D, 1, 0, -1))
@@ -80,7 +80,7 @@ class DatalogConverter:
         return file
 
     def open_csv(self):
-        logger.debug(f"Loading '{self.csv_filename}'")
+        logger.debug(f"Loading '{self.csv_filename}'.")
         return open(self.csv_filename)
 
     def exported_pdu_header(self, bus_type: str) -> bytes:
@@ -94,14 +94,15 @@ class DatalogConverter:
         offset = 0
         while offset < len(data):
             if len(data) - offset < self.OPERATION_HEADER_SIZE:
-                logger.warning(f"{column}: {len(data) - offset} byte(s) left, not enough for an operation.")
+                logger.warning(f"Column '{column}': {len(data) - offset} byte(s) left, not enough for an operation.")
                 return
             opcode, length = struct.unpack_from("<II", data, offset)
             if length < self.OPERATION_HEADER_SIZE or offset + length > len(data):
-                logger.warning(f"{column}: operation 0x{opcode:04X} has an invalid length {length}.")
+                logger.warning(f"Column '{column}': operation 0x{opcode:04X} has an invalid length {length}.")
                 return
 
-            logger.debug(f"time={timestamp / 1e6} {column} {bus_type} operation 0x{opcode:04X} length={length}")
+            logger.debug(f"Column '{column}' at {timestamp / 1e6}s: {bus_type} operation 0x{opcode:04X} of length "
+                         f"{length}.")
             packet = self.exported_pdu_header(bus_type) + data[offset:offset + length]
             self.write_block(self.pcapfile, 6, struct.pack("<IIIII", 0, timestamp >> 32, timestamp & 0xFFFFFFFF,
                                                            len(packet), len(packet)) + packet)
@@ -130,7 +131,7 @@ class DatalogConverter:
                 clock_column_name = ".".join(splitted_name)
 
                 if clock_column_name in csv_reader.fieldnames:
-                    logger.debug(f"{column_name} is clocked by {clock_column_name}")
+                    logger.debug(f"Column '{column_name}' is clocked by '{clock_column_name}'.")
                     clock_column_names[column_name] = clock_column_name
 
             for row in csv_reader:
@@ -150,8 +151,8 @@ class DatalogConverter:
 
 
 def datalog2pcap():
-    logger.info(f"FMUContainer version {version}")
-    logger.warning("Datalog2PCAP is still experimental.")
+    logger.info(f"datalog2pcap version {version}.")
+    logger.warning("datalog2pcap is still experimental.")
 
     parser = argparse.ArgumentParser(prog="datalog2pcap",
                                      description="Convert the LS-BUS datalog of a container to a PCAPNG file.",

@@ -93,8 +93,8 @@ class Help:
         '-only-locals': "apply operation only on ports with  causality = 'local'. This "
                          "option is available from version 1.9.",
 
-        '-only-type': "apply operation only on ports of this type, e.g. 'Real' or 'Float64'. On a FMI-3.0 FMU, a "
-                      "FMI-2.0 type selects its family: 'Real' for Float32 and Float64, 'Integer' for every "
+        '-only-type': "apply operation only on ports of this type, e.g. 'Real' or 'Float64'. On a FMI-3 FMU, a "
+                      "FMI-2 type selects its family: 'Real' for Float32 and Float64, 'Integer' for every "
                       "integer type. Can be repeated, and combined with -only-* options: a port must match each "
                       "of them. This option is available from version 2.1.",
 

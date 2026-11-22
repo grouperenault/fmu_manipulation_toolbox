@@ -6,6 +6,8 @@ can be instantiated and that basic programmatic interactions work. They require
 usable Qt platform) is unavailable. Qt is forced to the offscreen platform in
 ``conftest.py``.
 """
+import logging
+
 import pytest
 
 # Skip the whole module if the GUI dependencies are not importable.
@@ -112,6 +114,89 @@ def test_fmutool_failed_operation_returns_false(qtbot, bouncing_ball):
 
     assert window.apply_operation(Failure()) is False
     assert not window.save_fmu_button.isEnabled()
+
+
+def _records(caplog, levelno) -> list[str]:
+    return [record.getMessage() for record in caplog.records if record.levelno == levelno]
+
+
+def test_fmutool_failed_operation_is_critical(qtbot, bouncing_ball, caplog):
+    """A failed operation produces no result: its reason is logged once, as CRITICAL (docs/developer/logging.md)."""
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(bouncing_ball)
+    from fmu_manipulation_toolbox.operations import OperationAbstract, OperationError
+
+    class Failure(OperationAbstract):
+        def closure(self):
+            raise OperationError("Failure.")
+
+    caplog.set_level(logging.DEBUG, logger="fmu_manipulation_toolbox")
+    window.apply_operation(Failure())
+    assert _records(caplog, logging.CRITICAL) == ["Failure."]
+    assert not _records(caplog, logging.ERROR)
+
+
+def test_fmutool_unexpected_exception_keeps_its_type(qtbot, bouncing_ball, caplog):
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(bouncing_ball)
+    from fmu_manipulation_toolbox.operations import OperationAbstract
+
+    class Bug(OperationAbstract):
+        def closure(self):
+            raise KeyError("x")
+
+    caplog.set_level(logging.DEBUG, logger="fmu_manipulation_toolbox")
+    window.apply_operation(Bug())
+    assert _records(caplog, logging.CRITICAL) == ["KeyError: 'x'"]
+
+
+def test_fmutool_save_failure_is_critical(qtbot, bouncing_ball, caplog, monkeypatch, tmp_path):
+    from fmu_manipulation_toolbox.gui.helper import LastDirectory
+
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(bouncing_ball)
+    target = tmp_path / "missing" / "out.fmu"                   # its directory does not exist
+    monkeypatch.setattr(LastDirectory, "get_save_file_name", classmethod(lambda cls, *a, **k: str(target)))
+    caplog.set_level(logging.DEBUG, logger="fmu_manipulation_toolbox")
+    window.save_fmu()
+    assert len(_records(caplog, logging.CRITICAL)) == 1
+    assert not any("saved as" in message for message in _records(caplog, logging.INFO))
+
+
+def test_fmutool_save_logs_the_path(qtbot, bouncing_ball, caplog, monkeypatch, tmp_path):
+    from fmu_manipulation_toolbox.gui.helper import LastDirectory
+
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(bouncing_ball)
+    target = tmp_path / "out.fmu"
+    monkeypatch.setattr(LastDirectory, "get_save_file_name", classmethod(lambda cls, *a, **k: str(target)))
+    caplog.set_level(logging.DEBUG, logger="fmu_manipulation_toolbox")
+    window.save_fmu()
+    assert f"Modified version saved as '{target}'." in _records(caplog, logging.INFO)
+
+
+def test_fmutool_load_failure_is_critical(qtbot, tmp_path, caplog):
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    not_a_zip = tmp_path / "broken.fmu"
+    not_a_zip.write_text("not a zip")
+    caplog.set_level(logging.DEBUG, logger="fmu_manipulation_toolbox")
+    window.load(str(not_a_zip))
+    assert any("broken.fmu" in message for message in _records(caplog, logging.CRITICAL))
+
+
+def test_fmutool_welcome_text_is_not_logged(qtbot, caplog):
+    caplog.set_level(logging.DEBUG, logger="fmu_manipulation_toolbox")
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    messages = [record.getMessage() for record in caplog.records]
+    assert any(message.startswith("FMU Tool version ") and message.endswith(".") for message in messages)
+    assert not any("Analyze and modify your FMUs." in message for message in messages)
+    assert "Analyze and modify your FMUs." in window.log_widget.toPlainText()
 
 
 def _links(log_widget) -> list[tuple[str, str]]:
@@ -375,7 +460,7 @@ def fake_compile_dialog(monkeypatch):
 
 @pytest.fixture
 def needs_foo_fmu(data_dir, tmp_path):
-    """FMI 3.0 Reference FMU without binaries, whose `model.c` only compiles with `FOO` defined."""
+    """FMI-3 Reference FMU without binaries, whose `model.c` only compiles with `FOO` defined."""
     from _helpers.archive import read_entry, rewrite_fmu
     source = data_dir / "compile" / "3.0" / "BouncingBall.fmu"
     model = read_entry(source, "sources/model.c")

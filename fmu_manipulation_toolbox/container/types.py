@@ -25,7 +25,7 @@ ALL_TYPES = (
     "binary", "clock"
 )
 
-#: `intervalVariability` of the clocks whose ticks are known in advance, scheduled by the importer (FMI-3.0 2.2.8).
+#: `intervalVariability` of the clocks whose ticks are known in advance, scheduled by the importer (FMI-3 §2.2.8).
 TIME_BASED_CLOCKS = ("constant", "fixed", "tunable", "changing", "countdown")
 
 #: Types without start value in `container.txt`.
@@ -60,7 +60,7 @@ FMI_TO_CONTAINER = {
     }
 }
 
-#: Integer type used for an `Enumeration`, by FMI version: FMI 2.0 accesses it with `fmi2GetInteger` and FMI 3.0 with
+#: Integer type used for an `Enumeration`, by FMI version: FMI-2 accesses it with `fmi2GetInteger` and FMI-3 with
 #: `fmi3GetInt64`.
 ENUMERATION_TYPE = {
     2: "Integer",

@@ -5,7 +5,7 @@
 #include "fmi3FunctionTypes.h"
 
 /*
- * Used at configuration time to ensure compatiblity between FMI 2.0 and 3.0 data types. 
+ * Used at configuration time to ensure compatiblity between FMI-2 and FMI-3 data types. 
  */
 
 int main(int argc, char **argv) {

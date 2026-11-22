@@ -7,29 +7,29 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 
 ## FMU Container
 
-- 🟠 **FIXED** runtime: a clock ticked by an embedded FMU of FMI 3.0 during the event iteration (in
+- 🟠 **FIXED** runtime: a clock ticked by an embedded FMU of FMI-3 during the event iteration (in
   `fmi3UpdateDiscreteStates`, e.g. an FMU that relays a clock it receives) was lost when the FMU it is linked to came
   after it in the order of the container, or before it without another update of the discrete states: it now
   reaches all of them.
 - 🟠 **FIXED** runtime: a failure to read the outputs of an embedded FMU at the end of the initialization is reported
   by `fmi*ExitInitializationMode`, instead of being ignored; the container no longer crashes when it is freed after
   an allocation failure of its local binaries.
-- 🟠 **FIXED** `<InitialUnknowns>` (FMI 2.0) and `<InitialUnknown>` (FMI 3.0) of the container listed every output,
-  including the ones that copy `initial="exact"` and a start value from their embedded FMU (FMI 2.0 §2.2.8,
-  FMI 3.0 §2.4.8): they now list the outputs with `initial="calculated"` or `"approx"` only.
-- 🟠 **FIXED** the inputs `container.ts_multiplier` and `container.solver` of an FMI 2.0 container had an `initial`
-  attribute, which FMI 2.0 does not allow on an input (§2.2.7); an input of an FMI 2.0 container never has one.
+- 🟠 **FIXED** `<InitialUnknowns>` (FMI-2) and `<InitialUnknown>` (FMI-3) of the container listed every output,
+  including the ones that copy `initial="exact"` and a start value from their embedded FMU (FMI-2 §2.2.8,
+  FMI-3 §2.4.8): they now list the outputs with `initial="calculated"` or `"approx"` only.
+- 🟠 **FIXED** the inputs `container.ts_multiplier` and `container.solver` of an FMI-2 container had an `initial`
+  attribute, which FMI-2 does not allow on an input (§2.2.7); an input of an FMI-2 container never has one.
 - 🔵 **CHANGED** runtime, multi-threaded mode (`-mt`): only the embedded Co-Simulation FMUs whose `doStep` is long
   get a thread. The container measures their steps over the first 20 internal steps; those that take at least a
   threshold (50 µs by default) are stepped by a pool of worker threads (at most one per core but one), the others by
   the main thread meanwhile; without such an FMU, the mono-thread parallel mode goes on. The multi-threaded mode is no
   longer slower than the mono-thread one on FMUs with short steps (3.8 times faster on the benchmark), and the
   results are unchanged. `container.txt` is now in version 10.
-- 🟢 **ADDED** an FMI 3.0 container declares its time step in the `fixedInternalStepSize` attribute of
+- 🟢 **ADDED** an FMI-3 container declares its time step in the `fixedInternalStepSize` attribute of
   `<CoSimulation>`, also with the `TS_MULTIPLIER` input (its internal steps stay on the grid of the time step).
-- 🔵 **CHANGED** the step size of an embedded FMI 3.0 FMU is its `fixedInternalStepSize`, else the `stepSize` of its
+- 🔵 **CHANGED** the step size of an embedded FMI-3 FMU is its `fixedInternalStepSize`, else the `stepSize` of its
   `<DefaultExperiment>`; an FMU with a `fixedInternalStepSize` imposes its step on the container (least common
-  multiple), even when it can handle a variable communication step size. An FMI 3.0 sub-container thus imposes its
+  multiple), even when it can handle a variable communication step size. An FMI-3 sub-container thus imposes its
   step on its parent. The GUI tree shows the same step sizes, in italics for the FMUs whose step does not constrain
   the container. The FMI-LS-REF replay without `stepSize` keeps the `stepSize` of the `DefaultExperiment` of the FMU.
 - 🟢 **ADDED** option `-mt-threshold <seconds>` of `fmucontainer` (`"mt_threshold"` of the JSON description, of the
@@ -49,18 +49,18 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   `<fmu id>.<variable>`. Two services on the same port are refused at build time. The interfaces with direct memory
   access only are not forwarded (warning). See [LS-XCP Support](docs/user-guide/fmucontainer/ls-xcp.md).
 - 🟢 **ADDED** a structural parameter of an embedded FMU can be exposed: the container sets it in the Configuration
-  Mode of the FMU (forwarded from the Configuration Mode of an FMI 3.0 container, otherwise before its
+  Mode of the FMU (forwarded from the Configuration Mode of an FMI-3 container, otherwise before its
   initialization). `container.txt` is now in version 9.
-- 🟢 **ADDED** a `Boolean` output of an embedded FMU of the other FMI version (FMI 2.0 in an FMI 3.0 container, or
+- 🟢 **ADDED** a `Boolean` output of an embedded FMU of the other FMI version (FMI-2 in an FMI-3 container, or
   the reverse) is exposed, converted by the container. The `Boolean` inputs of this kind still cannot be exposed.
   `fmusplit` does not restore these outputs.
-- 🔵 **CHANGED** the start values of an embedded FMI 2.0 FMU are set before `fmi2SetupExperiment`, where an FMU may use
+- 🔵 **CHANGED** the start values of an embedded FMI-2 FMU are set before `fmi2SetupExperiment`, where an FMU may use
   its parameters (e.g. to start its XCP service).
 - 🟠 **FIXED** a value set by the importer of the container before its initialization was overwritten by the start
   value of the embedded FMU: it prevails now.
 - 🔵 **CHANGED** runtime: `fmi3GetIntervalDecimal` is no longer required when an embedded FMU is loaded, only by
   the clocks whose schedule needs it (not periodic, or without interval in the `modelDescription.xml`): the
-  container is refused when it reads its clocks, with the FMU and the clock (FMI 3.0.1, 2.5: an importer should
+  container is refused when it reads its clocks, with the FMU and the clock (FMI-3.0.1, 2.5: an importer should
   not rely on the functions it does not need).
 - 🟠 **FIXED** datalog: the ticks of the clocks when the embedded FMUs leave their Initialization Mode were not logged
   (e.g. the operations of FMI-LS-BUS prepared in Initialization Mode, sent in the first Event Mode): a first row at the
@@ -71,12 +71,12 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 - 🟠 **FIXED** runtime: the output arguments of `fmi3UpdateDiscreteStates` (and the `fmi2EventInfo` of
   `fmi2NewDiscreteStates`) are initialized before the call: an FMU that does not set them could terminate the
   simulation by chance (`terminateSimulation`), e.g. on Windows.
-- 🟠 **FIXED** an FMI 2.0 array aggregate (`name[1]`, `name[2]`, ...) was exchanged with consecutive value
+- 🟠 **FIXED** an FMI-2 array aggregate (`name[1]`, `name[2]`, ...) was exchanged with consecutive value
   references from its first element: each element is now exchanged with its own value reference (links and start
-  values), as an element may have any value reference (e.g. an alias). Exposed by an FMI 3.0 container, only its
+  values), as an element may have any value reference (e.g. an alias). Exposed by an FMI-3 container, only its
   first element was exchanged: an exposed aggregate is now a local variable of the container, its elements exchanged
   one by one after (outputs) or before (inputs) each step of the FMU.
-- 🟠 **FIXED** the `resourcePath` given to an embedded FMI 3.0 FMU had no trailing file separator (FMI 3.0, 2.3.1): the
+- 🟠 **FIXED** the `resourcePath` given to an embedded FMI-3 FMU had no trailing file separator (FMI-3 §2.3.1): the
   FMUs that check it, like the Reference-FMUs since v0.0.42, could not be instantiated.
 - 🟠 **FIXED** a clock or a clocked variable of an embedded FMU could be exposed on the container, explicitly or by
   `auto_input` / `auto_output` / `auto_local`: the container then accessed it outside the activation of its clock. It
@@ -85,13 +85,13 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 - 🟠 **FIXED** a time-based input clock of an embedded FMU that was not linked never ticked, and cannot be exposed:
   the container schedules it now, like the linked ones.
 - 🟠 **FIXED** an embedded FMU that asked to terminate the simulation made the container fail (in Event Mode), or was
-  ignored (at the end of its step, and for FMI 2.0 `fmi2Discard`): the container now stops at the time reached and
-  tells its importer (FMI 3.0 `terminateSimulation`, FMI 2.0 `fmi2Discard` and `fmi2Terminated`).
+  ignored (at the end of its step, and for FMI-2 `fmi2Discard`): the container now stops at the time reached and
+  tells its importer (FMI-3 `terminateSimulation`, FMI-2 `fmi2Discard` and `fmi2Terminated`).
 - 🟠 **FIXED** checker FMI-LS-REF: a simulation terminated by the FMU was an error; it ends normally, the references
-  after its end are not compared (warning). The FMI 3.0 Stair of the Reference-FMUs passes.
-- 🟠 **FIXED** the resource locations given to the embedded FMUs: for FMI 2.0, a malformed URI (`file:////…`, `\`
+  after its end are not compared (warning). The FMI-3 Stair of the Reference-FMUs passes.
+- 🟠 **FIXED** the resource locations given to the embedded FMUs: for FMI-2, a malformed URI (`file:////…`, `\`
   separators on Windows, octets not percent-encoded) is now a `file` URI of RFC 3986; no more doubled separator in
-  their paths. An embedded FMU without `resources` folder gets an empty one: FMI 3.0 would give it a `NULL`
+  their paths. An embedded FMU without `resources` folder gets an empty one: FMI-3 would give it a `NULL`
   `resourcePath` (2.3.1), which some FMUs do not expect.
 - 🟠 **FIXED** LS-BUS: the frames sent by a Bus Simulation on its time-based `Tx_Clock` never reached the nodes: the clock
   was reset before the delivery of the clocked inputs.
@@ -107,7 +107,7 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   terminals made no link at all. A `Configuration` terminal on one side only raised a raw `KeyError`.
 - 🟠 **FIXED** an FMU with a `GraphicalRepresentation` before its `Terminals` had no terminal, without any message.
 - 🟢 **ADDED** LS-BUS up to 1.3.0-rc.1: LIN, FlexRay and Ethernet. See [LS-BUS](docs/user-guide/fmucontainer/ls-bus.md).
-- 🟢 **ADDED** all the time-based clocks of FMI 3.0 are scheduled, their shift included (`constant`, `fixed`, `tunable`,
+- 🟢 **ADDED** all the time-based clocks of FMI-3 are scheduled, their shift included (`constant`, `fixed`, `tunable`,
   `changing`), not only `countdown`. `container.txt` is now in version 8.
 - 🟢 **ADDED** the parameters of LS-BUS `Configuration` terminals (`BusNotifications`, `DeliveryOnBoundary`) take the value of
   the Bus Simulation when it is known at build time.
@@ -160,6 +160,15 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   archive: two FMUs with the same file name in different directories no longer overwrite each other. A component
   `source` outside the archive is refused. SSP 2.0 files are read; a component without `source` (SSP 2.0) is
   ignored with a warning, together with its connections.
+- 🔵 **CHANGED** messages of the builder, of `fmucontainer`, of `fmusplit` and of the runtime (logged through the
+  importer): sentences with the names between quotes (`Port 'a.fmu/y'`). The automatic wiring writes
+  `Auto link: 'a.fmu/y' → 'b.fmu/u'.` instead of `AUTO LINK: …`; the runtime writes the value references
+  as `the clock 3` instead of `vr=3`, without `[DEBUG]` tag, and its modes as `Container uses the parallel mode with
+  several threads…` instead of `Container use PARALLEL mode with MULTI thread…`. See
+  [Log Messages](docs/developer/logging.md).
+- 🔵 **CHANGED** the builder logs an `ERROR` instead of a `CRITICAL` when the embedded FMUs have no common OS or when
+  the library of the runtime is not found: the container is produced, but it may not run.
+- 🟠 **FIXED** `datalog2pcap` gave its version as the one of `FMUContainer`.
 
 ## AI agents
 
@@ -179,20 +188,22 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 - 🟢 **ADDED** `fmutool-agent`: the tools of the MCP server as a JSON command line (same arguments, same
   results), for agents that only run commands. It needs neither `fastmcp` nor Pydantic; the assembly is kept
   between calls in the file given by `--state`. `fmutool-agent list-tools` prints the version of the toolbox.
-- 🟢 **ADDED** MCP tool `describe_port`: everything declared about one port (every attribute, FMI 3 dimensions,
+- 🟢 **ADDED** MCP tool `describe_port`: everything declared about one port (every attribute, FMI-3 dimensions,
   declared type and the attributes inherited from it, aliases, terminals).
 - 🟢 **ADDED** MCP filters `type` and `variability` on `list_fmu_ports`, `inspect_fmu_file` and
-  `apply_operation`; on an FMI 3 FMU, an FMI 2 type selects its family (`Real`: `Float32`, `Float64`).
+  `apply_operation`; on an FMI-3 FMU, an FMI-2 type selects its family (`Real`: `Float32`, `Float64`).
 - 🔴 **BREAKING** MCP tool `rename_ports_from_csv` replaced by `rename_ports`, which takes a `mapping`
   (`{"old": "new"}`) or the `csv`, and reports the names of the mapping absent from the FMU (`unknown`).
 - 🔵 **CHANGED** shorter descriptions of some MCP tools and container options, to make room for the new tools
   in the context of small models.
+- 🔵 **CHANGED** the actions of the AI Assistant are logged as `AI Assistant: link 'a.fmu/y' → 'b.fmu/u' added.`
+  instead of `[AI] Linked …`, in the Container Builder and in `fmutool-mcp`.
 
 ## fmutool and the Python API
 
 - 🟢 **ADDED** checker: `<InitialUnknowns>` / `<InitialUnknown>` must list the outputs with `initial="calculated"`
   or `"approx"` (clocks and clocked variables excepted, as the Reference FMUs do) and no output with
-  `initial="exact"` (FMI 2.0 §2.2.8, FMI 3.0 §2.4.8).
+  `initial="exact"` (FMI-2 §2.2.8, FMI-3 §2.4.8).
 - 🟢 **ADDED** **FMI-LS-REF** (1.0.0-alpha.1, with the draft MA-HS-Experiments): `fmutool -check` validates the
   manifest and the experiment files of an FMU (`OperationLsRefCheck`), **replays its experiments** (and the `result`
   files of the Reference FMUs) with the runtime of the FMU Container and compares its outputs with the references
@@ -200,7 +211,7 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   than 60 s, fails this experiment only. New modules `experiments`, `timeseries` and `simulation`. See
   [FMU Checker](docs/user-guide/fmutool/checker.md#validation-of-the-results-fmi-ls-ref).
 - 🟢 **ADDED** `simulation.replay` records an array output as one column per element, named as by the structured
-  naming convention of FMI 3.0 (`y[1]`, `y[2]`..., `m[1,1]`, `m[1,2]`...: indices from 1, row-major order); a stimulus
+  naming convention of FMI-3 (`y[1]`, `y[2]`..., `m[1,1]`, `m[1,2]`...: indices from 1, row-major order); a stimulus
   on an array input, or an output whose dimension is a structural parameter, is refused (`SimulationUnsupported`).
   An array output was read as a scalar: the replay failed.
 - 🟢 **ADDED** `-ref-rtol`, `-ref-atol` and `-ref-timeout` options of `fmutool -check`, and the `rtol`, `atol` and
@@ -208,7 +219,7 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 - 🟢 **ADDED** `OperationLsXcpCheck`, a built-in checker of the rules of FMI-LS-XCP 1.0.0 (manifest against its XSD,
   A2L files, role variables), run by `fmutool -check`. See [FMU Checker](docs/user-guide/fmutool/checker.md).
 - 🟢 **ADDED** `-only-type` and `-only-variability` options of `fmutool`, and the `types` and `variabilities`
-  arguments of `FMU.apply_operation`: an operation restricted to some types (an FMI 2 type selects its FMI 3
+  arguments of `FMU.apply_operation`: an operation restricted to some types (an FMI-2 type selects its FMI-3
   family) or variabilities (the default of the standard when a port declares none), combined with the
   causality filters.
 - 🟢 **ADDED** `OperationRename`: renaming, or removal, from a mapping of names; `OperationRenameFromCSV` derives
@@ -217,6 +228,17 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   `ModelVariable.has_type`.
 - 🟢 **ADDED** `-debug` option of `fmutool` and `fmutool-gui` (at launch): the `DEBUG` lines are logged, in the log
   area for `fmutool-gui`, e.g. the command lines of the compiler and of the linker of `-compile-sources`.
+- 🔵 **CHANGED** the messages of every tool follow one convention ([Log Messages](docs/developer/logging.md)): a
+  sentence, the names between single quotes, no level nor tag in the text, `FMI-2` / `FMI-3` as the spelling of the
+  standard. `fmutool` writes `Reading 'module.fmu'.` and `Writing 'module-modified.fmu'.` instead of
+  `READING Input='…'` and `WRITING Output='…'`, and `Operations restricted to causality 'parameter'.` for the
+  filters. Scripts that parse these messages need to be updated.
+- 🔵 **CHANGED** levels of the messages: `CRITICAL` for an error that prevents producing a result (a usage error, a
+  failed operation, an FMU that cannot be read), also in the GUIs, which logged it as `ERROR`; `ERROR` for an error
+  after which a result is produced, e.g. a non-compliance found by a checker. The exit codes and the count of the
+  errors of `-check` do not change.
+- 🔵 **CHANGED** remoting: when its client or server binary is missing, the operation fails and the FMU is not
+  modified; it was saved without its remoting, after a `CRITICAL` message.
 
 ## Native code
 
@@ -232,6 +254,7 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 - 🟠 **FIXED** remoting, Linux: `semtimedop()` was used without its prototype (an error with gcc 14 and later), the
   semaphores were removed even when they were not created, and a failure of `ftruncate()` or `getcwd()` was not
   detected. The remoting code compiles without warnings on Linux again.
+- 🔵 **CHANGED** the messages of the remoting client and server are written as the ones of the container runtime.
 
 ## Development
 
@@ -264,6 +287,13 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   application is created, unless `QT_FONT_DPI` is already set). From 175 %, fonts and widgets are scaled alike.
 - 🟠 **FIXED** status bar of the GUIs: a long log record is elided (the whole line in the tooltip) instead
   of widening the window.
+- 🟠 **FIXED** FMU Tool: a failure of **Save modified FMU as** (e.g. a folder that cannot be written) is logged,
+  instead of an exception raised out of the window.
+- 🔵 **CHANGED** FMU Tool: a horizontal rule separates the operations in the log area, instead of lines of dashes
+  logged as messages; the welcome text is shown in the log area without being logged.
+- 🟠 **FIXED** Container Builder: a failure of the MCP server of the AI Assistant was logged twice.
+- 🔵 **CHANGED** an unexpected exception is logged with its type (`KeyError: 'x'`); the internal inconsistencies of
+  the selection of the Container Builder are `DEBUG` messages.
 
 # Version 2.0
 

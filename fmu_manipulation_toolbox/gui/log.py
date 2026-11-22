@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from fmu_manipulation_toolbox.gui.helper import LastDirectory, MenuSelector
+from fmu_manipulation_toolbox.gui.helper import LastDirectory, MenuSelector, exception_message
 from fmu_manipulation_toolbox.gui.style import log_color
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -637,15 +637,15 @@ class RunTask(QDialog):
         log_handler.record_emitted.connect(self._on_record)
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         with window_log_context(self._owner) if parent is not None else contextlib.nullcontext():
-            logger.debug(f"Starting {title}...")
+            logger.debug(f"Starting {title}.")
             try:
                 task(*args, **kwargs)
                 self.succeeded = True
                 logger.info(f"✅ {title} finished.")
             except Exception as e:
-                logger.debug(f"{title} failed", exc_info=True)
-                logger.critical(f"{e}")
-                logger.info(f"❌ {title} failed")
+                logger.debug(f"{title} failed.", exc_info=True)
+                logger.critical(exception_message(e))
+                logger.info(f"❌ {title} failed.")
         QApplication.restoreOverrideCursor()
         log_handler.record_emitted.disconnect(self._on_record)
 

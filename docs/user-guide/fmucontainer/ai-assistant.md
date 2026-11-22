@@ -14,7 +14,7 @@ It comes in **two flavours**, serving exactly the same tools:
 With the GUI flavour, FMUs the agent adds, links it creates and options it
 sets appear immediately in the window. Every action is marked as an unsaved
 change (so it can be reviewed, undone or saved) and is written to the log as
-an `[AI] …` message: the last one is shown in the status bar, and all of them
+an `AI Assistant: …` message: the last one is shown in the status bar, and all of them
 in the [log window](gui-usage.md#log) (click the status bar).
 
 The standalone flavour needs neither a display nor a running GUI, and speaks
@@ -207,7 +207,7 @@ Create `.vscode/mcp.json` at the root of your workspace:
 | `get_assembly_json` | Review the assembly; a large one comes one container, then one section, at a time |
 | `analyze_assembly` | Summarise the assembly, or lint it before building (see [Analysing an assembly](#analysing-an-assembly)) |
 | `save_assembly` | Write the assembly description: JSON or SSP, by the extension of the file |
-| `save_as_fmu` | Build the container FMU (FMI 2 or 3), reporting progress |
+| `save_as_fmu` | Build the container FMU (FMI-2 or FMI-3), reporting progress |
 
 ### Single-FMU tools
 
@@ -218,7 +218,7 @@ These come from `fmutool` and the `Checker`. They read or rewrite **one**
 |------|-------------|
 | `summarize_fmu` | Identity, capabilities, platforms, embedded resources, port counts |
 | `check_fmu` | Conformity to the FMI standard: schema and semantic rules, plus any registered checker |
-| `describe_port` | Everything declared about one port (of a file, or of an FMU of the assembly): every attribute (`min`, `max`, `nominal`…), FMI 3 dimensions, declared type with the attributes the port inherits from it, aliases, terminals |
+| `describe_port` | Everything declared about one port (of a file, or of an FMU of the assembly): every attribute (`min`, `max`, `nominal`…), FMI-3 dimensions, declared type with the attributes the port inherits from it, aliases, terminals |
 | `dump_ports_csv` | Export every port to a CSV file, for bulk renaming |
 | `rename_ports` | Rename — or drop — ports, from a `mapping` (`{"old": "new"}`) or from that CSV |
 | `apply_operation` | Strip/merge a `Bus.` prefix, trim, or filter ports by regexp, restricted with `causality`, `type` and `variability` if needed |
@@ -254,7 +254,7 @@ ports are returned per call by default, at most 200 with `limit`. Rather than
 paging blindly, narrow the request:
 
 - `causality=["output"]` before looking for something to wire,
-- `type=["Real"]` or `variability=["tunable"]`: on an FMI 3 FMU, an FMI 2 type
+- `type=["Real"]` or `variability=["tunable"]`: on an FMI-3 FMU, an FMI-2 type
   selects its family (`Real` is `Float32` and `Float64`, `Integer` every integer
   type), and a port that declares no variability has the default of the
   standard,

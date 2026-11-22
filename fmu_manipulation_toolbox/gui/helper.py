@@ -16,10 +16,24 @@ from PySide6.QtWidgets import (
     QTableView,
 )
 
+from fmu_manipulation_toolbox.assembly import AssemblyError
+from fmu_manipulation_toolbox.container.errors import FMUContainerError
 from fmu_manipulation_toolbox.gui.style import gui_style
-from fmu_manipulation_toolbox.operations import FMU
+from fmu_manipulation_toolbox.operations import FMU, FMUError, OperationError
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
+
+#: The errors of the toolbox: their text is written for the user (see `docs/developer/logging.md`).
+TOOLBOX_ERRORS = (OperationError, FMUError, AssemblyError, FMUContainerError)
+
+
+def exception_message(error: BaseException) -> str:
+    """Text of *error* for the log: its message for an error of the toolbox, prefixed by its type otherwise, so that
+    an unexpected `KeyError('x')` is not reduced to `'x'`."""
+    if isinstance(error, TOOLBOX_ERRORS):
+        return str(error)
+    return f"{type(error).__name__}: {error}"
+
 
 # The application rounds the scale factor of the display down (RoundPreferFloor: 125 % and 150 % give 1): the widgets
 # keep their size in pixels, but on Windows Qt gives the fonts the DPI of the display (120, 144), so the texts
@@ -67,8 +81,8 @@ def get_fmu_icon_path(fmu: FMU, fmi_version: int | None) -> Path | None:
     """Return the path to the FMU model icon inside its extraction directory.
 
     The icon location depends on the FMI version:
-      - FMI 3.0: `terminalsAndIcons/icon.png`
-      - FMI 2.0 (or unknown): `model.png` at the FMU root
+      - FMI-3: `terminalsAndIcons/icon.png`
+      - FMI-2 (or unknown): `model.png` at the FMU root
 
     Args:
         fmu: The loaded FMU (uses its `tmp_directory`).
@@ -375,7 +389,7 @@ class DropZoneWidget(QLabel):
             try:
                 file_path = event.mimeData().urls()[0].toLocalFile()
             except IndexError:
-                logger.error("Please select a regular file.")
+                logger.critical("Please select a regular file.")
                 return
             self.set_fmu(Path(file_path))
             event.accept()
@@ -403,7 +417,7 @@ class DropZoneWidget(QLabel):
             # the icon once the FMI version has been detected.
             self.set_image(get_fmu_icon_path(self.fmu, self.fmu.fmi_version))
         except Exception as e:
-            logger.error(f"Cannot load this FMU: {e}")
+            logger.critical(exception_message(e))
             self.set_image(None)
             self.fmu = None
 

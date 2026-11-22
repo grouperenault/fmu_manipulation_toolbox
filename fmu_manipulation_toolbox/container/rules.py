@@ -35,10 +35,15 @@ class ContainerPort:
         try:
             self.port = fmu.ports[port_name]
         except KeyError:
-            raise FMUContainerError(f"Port '{fmu.name}/{port_name}' does not exist") from None
+            raise FMUContainerError(f"Port '{fmu.name}/{port_name}' does not exist.") from None
+
+    @property
+    def label(self) -> str:
+        """The name of the port, with its FMU, between single quotes: `'a.fmu/y'`."""
+        return f"'{self.fmu.name}/{self.port.name}'"
 
     def __repr__(self):
-        return f"Port {self.fmu.name}/{self.port.name}"
+        return f"Port {self.label}"
 
     def is_exposable(self, role: str) -> bool:
         """Whether the port can be exposed as `role` (INPUT, OUTPUT) of the container. Clocks and clocked variables
@@ -88,10 +93,10 @@ def check_ls_bus_mime_types(cport_from: ContainerPort, cport_to: ContainerPort):
         return
 
     if from_type[0] != to_type[0]:
-        raise FMUContainerError(f"failed to connect {cport_from} to {cport_to}: "
+        raise FMUContainerError(f"Cannot connect {cport_from} to port {cport_to.label}: "
                                 f"different LS-BUS types ({from_type[0]} and {to_type[0]}).")
     if from_type[1] != to_type[1]:
-        logger.warning(f"{cport_from} and {cport_to} use different versions of LS-BUS {from_type[0]}: "
+        logger.warning(f"{cport_from} and port {cport_to.label} use different versions of LS-BUS {from_type[0]}: "
                        f"{from_type[1]} and {to_type[1]}.")
 
 
@@ -127,19 +132,19 @@ class ContainerInput:
                 or causalities do not match.
         """
         if cport_to in self.cport_list: # Cannot be reached ! (Assembly prevent this to happen)
-            raise FMUContainerError(f"Duplicate INPUT {cport_to} already connected to {self.name}")
+            raise FMUContainerError(f"{cport_to} is already connected to the input '{self.name}'.")
 
         if cport_to.port.type_name != self.type_name:
-            raise FMUContainerError(f"Cannot connect {self.name} of type {self.type_name} to "
-                                    f"{cport_to} of type {cport_to.port.type_name}")
+            raise FMUContainerError(f"Cannot connect '{self.name}' of type '{self.type_name}' to "
+                                    f"port {cport_to.label} of type '{cport_to.port.type_name}'.")
 
         if cport_to.port.size() != self.size:
-            raise FMUContainerError(f"Cannot connect {self.name} with dimension {self.size} to "
-                                    f"{cport_to} with dimension {cport_to.port.size()}")
+            raise FMUContainerError(f"Cannot connect '{self.name}' of dimension {self.size} to "
+                                    f"port {cport_to.label} of dimension {cport_to.port.size()}.")
 
         if cport_to.port.causality != self.causality:
-            raise FMUContainerError(f"Cannot connect {self.causality.upper()} {self.name} to "
-                                    f"{cport_to.port.causality.upper()} {cport_to}")
+            raise FMUContainerError(f"Cannot connect the {self.causality} '{self.name}' to "
+                                    f"the {cport_to.port.causality} {cport_to.label}.")
 
         self.cport_list.append(cport_to)
 
@@ -183,7 +188,7 @@ class Link:
                 self.cport_from = None
                 self.add_target(cport_from)
             else:
-                raise FMUContainerError(f"{cport_from} is {cport_from.port.causality} instead of OUTPUT")
+                raise FMUContainerError(f"{cport_from} has the causality '{cport_from.port.causality}', not 'output'.")
 
     def add_target(self, cport_to: ContainerPort):
         """Add a destination input port to this link.
@@ -196,7 +201,7 @@ class Link:
                 incompatible and no conversion exists.
         """
         if not cport_to.port.causality == "input":
-            raise FMUContainerError(f"{cport_to} is {cport_to.port.causality} instead of INPUT")
+            raise FMUContainerError(f"{cport_to} has the causality '{cport_to.port.causality}', not 'input'.")
 
         if cport_to.port.type_name == "clock" and self.cport_from is None:
             self.cport_to_list.append(cport_to)
@@ -205,17 +210,19 @@ class Link:
                 check_ls_bus_mime_types(self.cport_from, cport_to)
                 self.cport_to_list.append(cport_to)
             else:
-                raise FMUContainerError(f"failed to connect {self.cport_from} to {cport_to} due dimensions mismatch.")
+                raise FMUContainerError(f"Cannot connect {self.cport_from} to port {cport_to.label}: their dimensions "
+                                        f"differ.")
         else:
             conversion = self.get_conversion(cport_to)
             if conversion:
                 if is_lossy(conversion):
-                    logger.warning(f"Lossy conversion {conversion.lstrip('_')} applied "
-                                   f"from {self.cport_from} to {cport_to}.")
+                    logger.warning(f"Lossy conversion '{conversion.lstrip('_')}': "
+                                   f"{self.cport_from.label} → {cport_to.label}.")
                 self.cport_to_list.append(cport_to)
                 self.conversions[cport_to.port.type_name] = conversion
             else:
-                raise FMUContainerError(f"failed to connect {self.cport_from} to {cport_to} due to type.")
+                raise FMUContainerError(f"Cannot connect {self.cport_from} to port {cport_to.label}: their types "
+                                        f"differ.")
 
     def get_conversion(self, cport_to: ContainerPort) -> str | None:
         """Look up the conversion function for connecting to a different type.

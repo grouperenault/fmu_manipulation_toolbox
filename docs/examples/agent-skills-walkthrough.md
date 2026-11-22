@@ -105,7 +105,7 @@ The agent loads **`fmu-inspect`** and follows its procedure:
 
 !!! quote "Answer (excerpt)"
 
-    `bouncing_ball.fmu` is an FMI 3.0 FMU (Reference FMUs), for co-simulation and model exchange. It has two
+    `bouncing_ball.fmu` is an FMI-3 FMU (Reference FMUs), for co-simulation and model exchange. It has two
     parameters: `g` (gravity, −9.81, `fixed`: it cannot change during the simulation) and `e` (coefficient of
     restitution, 0.7, `tunable`). The position `h` is in metres, through its declared type `Position`; it also
     has an alias `h_ft`, in feet.
@@ -163,7 +163,7 @@ The toolbox refuses, and the agent explains why instead of forcing it:
 
 !!! example "Request"
 
-    Couple `bb_position.fmu` and `bb_velocity.fmu` in an FMI 3.0 container, `bouncing.fmu`. The ball must
+    Couple `bb_position.fmu` and `bb_velocity.fmu` in an FMI-3 container, `bouncing.fmu`. The ball must
     bounce when it touches the ground.
 
 The agent loads **`fmu-container`**:
@@ -190,12 +190,12 @@ The agent loads **`fmu-container`**:
 4. Review: `analyze_assembly` in `summary` mode (FMUs, links, exposed ports), then in `lint` mode
    (`"findings": []`: nothing to report).
 
-5. Build, once you confirmed the path: `save_as_fmu` with `{"path": "bouncing.fmu", "fmi_version": 3}`. FMI 3.0
-   is the right choice here: an FMI 2.0 container could not expose the `Boolean` ports of FMI 3.0 FMUs.
+5. Build, once you confirmed the path: `save_as_fmu` with `{"path": "bouncing.fmu", "fmi_version": 3}`. FMI-3
+   is the right choice here: an FMI-2 container could not expose the `Boolean` ports of FMI-3 FMUs.
 
 !!! quote "Answer (excerpt)"
 
-    `bouncing.fmu` is built (FMI 3.0). `velocity` is linked automatically; I linked `is_ground` → `reset` so
+    `bouncing.fmu` is built (FMI-3). `velocity` is linked automatically; I linked `is_ground` → `reset` so
     that the velocity is reset when the ball touches the ground. The unconnected output `position1` is exposed
     by the container.
 

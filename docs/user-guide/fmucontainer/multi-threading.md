@@ -44,17 +44,17 @@ flowchart TD
 The decision is taken once, at the end of the warm-up, and logged, for example:
 
 ```text
-Container use PARALLEL mode with MULTI thread, for the FMUs whose step takes 50 us or more (measured over the first 20 steps).
-Container use PARALLEL mode with MULTI thread: 4 worker thread(s) for 4 FMU(s), 8 FMU(s) on the main thread.
-FMU 'Slow-0.fmu' (step of 101.3 us) on worker thread #0.
-FMU 'Slow-1.fmu' (step of 100.8 us) on worker thread #1.
+Container uses the parallel mode with several threads, for the FMUs whose step takes 50 us or more (measured over the first 20 steps).
+Container uses the parallel mode with several threads: 4 worker thread(s) for 4 FMU(s), 8 FMU(s) on the main thread.
+FMU 'Slow-0.fmu' (step of 101.3 us) runs on the worker thread #0.
+FMU 'Slow-1.fmu' (step of 100.8 us) runs on the worker thread #1.
 ...
 ```
 
 or, when no FMU is heavy:
 
 ```text
-Container use PARALLEL mode with MONO thread: no FMU step takes the threshold.
+Container uses the parallel mode with one thread: no FMU step takes the threshold.
 ```
 
 ## When it helps: several FMUs with a long step

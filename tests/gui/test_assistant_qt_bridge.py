@@ -456,8 +456,8 @@ def test_the_server_logs_only_in_its_window(qapp, data_dir):
         QApplication.processEvents()
 
         first_history = history(first)
-        assert any(text.startswith("[AI] Added FMU 'bb_position") for text in first_history)
-        assert any("bb_position.fmu" in text and not text.startswith("[AI]") for text in first_history)
+        assert any(text.startswith("AI Assistant: FMU 'bb_position") for text in first_history)
+        assert any("bb_position.fmu" in text and not text.startswith("AI Assistant:") for text in first_history)
         assert history(second) == second_before
     finally:
         _close_container_window(first)
@@ -493,3 +493,29 @@ def test_import_assembly_replaces_the_canvas_and_save_assembly_writes_ssp(mcp_se
     assert window._dirty is False  # saved
     with zipfile.ZipFile(destination) as archive:
         assert "SystemStructure.ssd" in archive.namelist()
+
+
+def test_a_failure_of_the_server_is_logged_once(qapp, monkeypatch, caplog):
+    """The window reports the failure of the server (CRITICAL: the AI Assistant is not enabled); the controller does
+    not log it a second time (docs/developer/logging.md)."""
+    import logging
+
+    from PySide6.QtWidgets import QMessageBox
+
+    from fmu_manipulation_toolbox.gui.fmucontainer.__main__ import MainWindow
+    from fmu_manipulation_toolbox.gui.fmucontainer.mcp_bridge import McpServerController
+
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: 0)
+    window = MainWindow()
+    try:
+        controller = McpServerController(window)
+        controller.error.connect(window._ai_assistant_error)
+        with caplog.at_level(logging.DEBUG, logger="fmu_manipulation_toolbox"):
+            controller._on_thread_failed("Port 8000 already in use.")
+        records = [(record.levelname, record.getMessage()) for record in caplog.records
+                   if record.levelno >= logging.WARNING]
+        assert records == [("CRITICAL", "Port 8000 already in use.")]
+    finally:
+        window._dirty = False
+        window.close()
+        window.deleteLater()

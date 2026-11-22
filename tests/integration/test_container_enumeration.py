@@ -1,4 +1,4 @@
-"""FMI-3 `Enumeration` ports in a container: FMI 3.0 accesses them as `Int64` (`fmi3GetInt64`/`fmi3SetInt64`)."""
+"""FMI-3 `Enumeration` ports in a container: FMI-3 accesses them as `Int64` (`fmi3GetInt64`/`fmi3SetInt64`)."""
 import logging
 import shutil
 from pathlib import Path
@@ -40,13 +40,13 @@ def test_enumeration_through_a_link(feedthrough):
 
 
 def test_enumeration_is_not_exposed_by_an_fmi2_container(feedthrough, caplog):
-    """FMI 2.0 has no 64-bit integer: an FMI-3 enumeration cannot be a port of an FMI-2 container."""
+    """FMI-2 has no 64-bit integer: an FMI-3 enumeration cannot be a port of an FMI-2 container."""
     caplog.set_level(logging.DEBUG, logger="fmu_manipulation_toolbox")
     container = FMUContainer("enumeration2", ".", fmi_version=2)
     container.get_fmu("Feedthrough.fmu")
     container.add_output("Feedthrough.fmu", "Enumeration_output", "option_out")
     container.make_fmu("enumeration2.fmu", step_size=0.001)
 
-    assert "Cannot expose (output) 'option_out' because type 'integer64' is not compatible with FMI-2.0" \
+    assert "Cannot expose the output 'option_out': its type 'integer64' is not compatible with FMI-2." \
         in caplog.text
     assert 'name="option_out"' not in read_entry("enumeration2.fmu", "modelDescription.xml").decode("utf-8")

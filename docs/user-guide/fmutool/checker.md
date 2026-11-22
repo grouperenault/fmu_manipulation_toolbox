@@ -1,13 +1,13 @@
 # FMU Checker
 
-FMU Manipulation Toolbox includes built-in checkers (FMI 2.0 and 3.0). You can also write your own
+FMU Manipulation Toolbox includes built-in checkers (FMI-2 and FMI-3). You can also write your own
 custom checkers.
 
 - `OperationGenericCheck` validates `modelDescription.xml` against the official FMI XSD schema and reports
   every violation.
-- `OperationSemanticCheck` checks the rules of the standard that the schema cannot express (FMI 2.0.5
-  §2.2.7–2.2.8, FMI 3.0.2 §2.4.7–2.4.8). Each message cites the section of the standard:
-    - variable names (and FMI 3.0 aliases) are unique; FMI 3.0 value references are unique;
+- `OperationSemanticCheck` checks the rules of the standard that the schema cannot express (FMI-2.0.5
+  §2.2.7–2.2.8, FMI-3.0.2 §2.4.7–2.4.8). Each message cites the section of the standard:
+    - variable names (and FMI-3 aliases) are unique; FMI-3 value references are unique;
     - allowed combinations of `causality` and `variability`; only `Real` / `Float32` / `Float64` variables
       can be `continuous`;
     - allowed values of `initial`, and presence or absence of a `start` value;
@@ -23,8 +23,8 @@ custom checkers.
       of its platform directories, and does not use `/include`; an A2L file for a platform without binaries is a
       warning;
     - each interface has `containsXCPService` or `supportsDirectMemoryAccess`;
-    - each `Variable` refers to an existing scalar variable of the type of its role (`Boolean`, `UInt16` in FMI 3.0
-      or `Integer` in FMI 2.0, `String`), declared as a fixed `structuralParameter` (FMI 3.0), a fixed `parameter`,
+    - each `Variable` refers to an existing scalar variable of the type of its role (`Boolean`, `UInt16` in FMI-3
+      or `Integer` in FMI-2, `String`), declared as a fixed `structuralParameter` (FMI-3), a fixed `parameter`,
       a `constant` output or a fixed or tunable `calculatedParameter`; a variable is used once, a role once per
       interface.
 - `OperationLsRefCheck` checks the reference material of FMI-LS-REF, for an FMU that declares it (manifest
@@ -56,7 +56,7 @@ With `fmutool -check`, any error logged by a checker makes the command exit with
     fmu.apply_operation(check)
 
     if check.compliant_with_version:
-        print(f"FMU is compliant with FMI {check.compliant_with_version}")
+        print(f"FMU is compliant with FMI-{check.compliant_with_version[0]}")
     else:
         print("FMU is NOT compliant")
     ```
@@ -87,7 +87,7 @@ and stop times, its step size, and its parameters (SSV file), stimuli and refere
 ### Replay and comparison
 
 The experiments of sub-role `smoke-test` (the default) and `validation`, and the `result` files, are replayed on the
-host platform with the runtime of the FMU Container: the FMU is embedded in a temporary FMI 3.0 container, then
+host platform with the runtime of the FMU Container: the FMU is embedded in a temporary FMI-3 container, then
 simulated. Each experiment is simulated in a **dedicated process**: a crash of the FMU (e.g. a segmentation fault)
 or a simulation that does not end within **60 s** (`-ref-timeout`) fails this experiment only (error, with the signal or the exit
 code of the process), the check and the other experiments go on.
@@ -108,7 +108,7 @@ code of the process), the check and the other experiments go on.
   normal. The references after it are not compared (warning).
 - Not replayed (warning): the experiments of sub-role `uncertainty-analysis`, when the runtime of the container or the
   binary of the FMU is not available for the host platform, and the experiments with a stimulus on a `Boolean` input
-  of an FMI 2.0 FMU (the FMI 3.0 container cannot expose it).
+  of an FMI-2 FMU (the FMI-3 container cannot expose it).
 
 The CSV files follow the convention of the FMI cross-check: comma separator, a first column `time`, one column per
 variable named after it:

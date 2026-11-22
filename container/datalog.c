@@ -39,16 +39,18 @@ void datalog_log(container_t *container) {
         /* write a row in datalog */
         fprintf(datalog->file, "%.17g", container->time);
 
-#define LOG3(type, fmi_type, format)                                                                                                        \
-        if (datalog->nb_ ## type > 0) {                                                                                                     \
-            fmi3Get ## fmi_type (container, datalog->vr_ ## type, datalog->nb_ ## type, datalog->values_ ## type, datalog->nb_ ## type);    \
-            for(unsigned long i = 0; i < datalog->nb_ ## type; i += 1)                                                                      \
+#define LOG3(type, fmi_type, format)                                                                   \
+        if (datalog->nb_ ## type > 0) {                                                                \
+            fmi3Get ## fmi_type (container, datalog->vr_ ## type, datalog->nb_ ## type,                \
+                                 datalog->values_ ## type, datalog->nb_ ## type);                      \
+            for(unsigned long i = 0; i < datalog->nb_ ## type; i += 1)                                 \
                 fprintf(datalog->file, "%c" format, datalog->separator, datalog->values_ ## type [i]); \
         }
-#define LOG2(type, fmi_type, format)                                                                                                        \
-        if (datalog->nb_ ## type > 0) {                                                                                                     \
-            fmi2Get ## fmi_type (container, datalog->vr_ ## type, datalog->nb_ ## type, datalog->values_ ## type);                          \
-            for(unsigned long i = 0; i < datalog->nb_ ## type; i += 1)                                                                      \
+#define LOG2(type, fmi_type, format)                                                                   \
+        if (datalog->nb_ ## type > 0) {                                                                \
+            fmi2Get ## fmi_type (container, datalog->vr_ ## type, datalog->nb_ ## type,                \
+                                 datalog->values_ ## type);                                            \
+            for(unsigned long i = 0; i < datalog->nb_ ## type; i += 1)                                 \
                 fprintf(datalog->file, "%c" format, datalog->separator, datalog->values_ ## type [i]); \
         }
 
@@ -74,7 +76,7 @@ void datalog_log(container_t *container) {
         LOG3(uintegers32, UInt32, "%" PRIu32);
         LOG3(integers64, Int64, "%" PRId64);
         LOG3(uintegers64, UInt64, "%" PRIu64);
-        LOG2(booleans, Boolean, "%d");          /* FMI 2.0 call */
+        LOG2(booleans, Boolean, "%d");          /* FMI-2 call */
         LOG3(booleans1, Boolean, "%d");
         if (datalog->nb_strings > 0) {
             fmi3GetString(container, datalog->vr_strings, datalog->nb_strings, datalog->values_strings,
@@ -118,8 +120,8 @@ void datalog_log(container_t *container) {
 
 static datalog_t *datalog_init(void) {
 #define INIT(variable, fmi_type, c_type) \
-    datalog->nb_ ## variable = 0; \
-    datalog->vr_ ## variable = NULL; \
+    datalog->nb_ ## variable = 0;        \
+    datalog->vr_ ## variable = NULL;     \
     datalog->values_ ## variable = NULL;
 
     datalog_t *datalog = malloc(sizeof(*datalog));
@@ -142,49 +144,49 @@ static datalog_t *datalog_init(void) {
 int datalog_configure(file_t *config, datalog_t *datalog) {
     const logger_t *logger = config->logger;
 
-   LOGGER_WARNING("Container enable DATALOG.");
+   LOGGER_WARNING("Container enables the datalog.");
 
     if (file_get_line(config)) {
-        LOGGER_ERROR("Cannot determine datalog file name");
+        LOGGER_ERROR("Cannot determine the name of the datalog file.");
         return -1;
     }
 
     datalog->file = fopen(config->line, "wt");
     if (!datalog->file) {
-        LOGGER_ERROR("Cannot open datalog file '%s': %s", config->line, strerror(errno));
+        LOGGER_ERROR("Cannot open the datalog file '%s': %s.", config->line, strerror(errno));
         return -2;
     }
     fprintf(datalog->file, "time");
 
 
 #define READ(variable, fmi_type, c_type)                                                                         \
-    if (file_get_line(config)) {                                                                                      \
-        LOGGER_ERROR("Cannot determine datalog for " #variable);                                                 \
+    if (file_get_line(config)) {                                                                                 \
+        LOGGER_ERROR("Cannot determine the datalog of " #variable ".");                                          \
         return -3;   /* the datalog is freed by datalog_new() */                                                 \
     }                                                                                                            \
     if (sscanf(config->line, "%lu", &datalog->nb_ ## variable) < 1) {                                            \
-        LOGGER_ERROR("Cannot get datalog definition of " #variable);                                             \
+        LOGGER_ERROR("Cannot get the datalog definition of " #variable ".");                                     \
         return -4;                                                                                               \
     }                                                                                                            \
     if (datalog->nb_ ## variable) {                                                                              \
         datalog->vr_ ## variable = malloc(datalog->nb_ ## variable * sizeof(*datalog->vr_ ## variable));         \
         datalog->values_ ## variable = malloc(datalog->nb_ ## variable * sizeof(*datalog->values_ ## variable)); \
         if (!datalog->vr_ ## variable || !datalog->values_## variable) {                                         \
-            LOGGER_ERROR("Cannot allocate memory for definition of " #variable);                                 \
+            LOGGER_ERROR("Cannot allocate memory for the definition of " #variable ".");                         \
             return -5;                                                                                           \
         }                                                                                                        \
         for(unsigned long i=0; i < datalog->nb_ ## variable; i += 1) {                                           \
             int offset = 0;                                                                                      \
-            if (file_get_line(config)) {                                                                              \
-                LOGGER_ERROR("Cannot get definition of " #variable);                                             \
+            if (file_get_line(config)) {                                                                         \
+                LOGGER_ERROR("Cannot get the definition of " #variable ".");                                     \
                 return -6;                                                                                       \
             }                                                                                                    \
             if (sscanf(config->line, "%u %n", &datalog->vr_ ## variable [i], &offset) < 1) {                     \
-                LOGGER_ERROR("Cannot read definition of " #variable);                                            \
+                LOGGER_ERROR("Cannot read the definition of " #variable ".");                                    \
                 return -7;                                                                                       \
             }                                                                                                    \
-            fputc(datalog->separator, datalog->file); \
-            datalog_write_csv_field(datalog->file, datalog->separator, config->line+offset); \
+            fputc(datalog->separator, datalog->file);                                                            \
+            datalog_write_csv_field(datalog->file, datalog->separator, config->line+offset);                     \
         }                                                                                                        \
     }
 
@@ -194,7 +196,7 @@ int datalog_configure(file_t *config, datalog_t *datalog) {
     if (datalog->nb_binaries > 0) {
         datalog->size_binaries = malloc(datalog->nb_binaries * sizeof(*datalog->size_binaries));
         if (! datalog->size_binaries) {
-            LOGGER_ERROR("Cannot allocate memory for size of binaries");
+            LOGGER_ERROR("Cannot allocate memory for the size of the binaries.");
             return -5;
         }
     }
@@ -214,7 +216,7 @@ datalog_t *datalog_new(const logger_t *logger, const char *dirname) {
 
     datalog_t *datalog = datalog_init();
     if (!datalog) {
-        LOGGER_ERROR("Cannot allocate datalog memory.");
+        LOGGER_ERROR("Cannot allocate the memory of the datalog.");
         file_close(&config);
         return NULL;
     }
@@ -250,7 +252,7 @@ void datalog_free(datalog_t *datalog) {
             fclose(datalog->file);
 
 #define FREE(variable, fmi_type, c_type) \
-    free(datalog->vr_ ## variable); \
+    free(datalog->vr_ ## variable);      \
     free(datalog->values_ ## variable);
 
         FOR_ALL_NUMERIC_TYPES(FREE)

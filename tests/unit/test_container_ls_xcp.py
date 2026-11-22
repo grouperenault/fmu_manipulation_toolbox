@@ -125,7 +125,7 @@ def test_container_follows_the_standard(xcp_dir, fmi_version, caplog):
         container.add_implicit_rule(auto_input=False, auto_output=False, auto_link=False)
         container.make_fmu("container.fmu", step_size=0.1)
     # The port of the FMU of the other FMI version is not exposed (its type would not be the one of the role)
-    assert "XCP.TCP.Port (XCPServiceTCPPort) is not exposed" in caplog.text
+    assert "XCP.TCP.Port' (XCPServiceTCPPort) is not exposed" in caplog.text
     check = OperationLsXcpCheck()
     with FMU("container.fmu") as fmu:
         fmu.apply_operation(check)
@@ -140,7 +140,7 @@ def test_fmi2_container(xcp_dir, caplog):
     container.add_start_value("stub_xcp_fmi3.fmu", "XCP.TCP.Port", "6000")
     with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
         container.add_implicit_rule(auto_input=False, auto_output=False, auto_link=False)
-    # FMI-3.0 UInt16 and Boolean: no such type in an FMI-2.0 container
+    # FMI-3 UInt16 and Boolean: no such type in an FMI-2 container
     assert "container would expose it as uinteger16, FMI-LS-XCP needs Integer" in caplog.text
     assert "container would expose it as boolean1, FMI-LS-XCP needs Boolean" in caplog.text
     lines = _container_txt(container)

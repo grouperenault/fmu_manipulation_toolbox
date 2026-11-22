@@ -143,20 +143,20 @@ A floating-point value representing the fundamental internal time step in second
   - **Line 1**: `<fmu_filename> <fmi_version> <has_event_mode> <has_configuration_mode>`
     - `fmu_filename`: Name of the `.fmu` file (e.g., `model.fmu`)
     - `fmi_version`: Integer (`2` or `3`)
-    - `has_event_mode`: Integer (`0` or `1`) — whether the FMU supports FMI 3.0 event mode
+    - `has_event_mode`: Integer (`0` or `1`) — whether the FMU supports FMI-3 event mode
     - `has_configuration_mode`: Integer (`0` or `1`, version ≥ 9) — the container sets structural parameters of
-      this FMI 3.0 FMU (start values `<RESET>=2`, section 7.2): see
+      this FMI-3 FMU (start values `<RESET>=2`, section 7.2): see
       [Configuration Mode](#configuration-mode-version-9)
   - **Line 2**: `<model_identifier>` — the CoSimulation `modelIdentifier`
-  - **Line 3**: `<guid>` — the GUID (FMI 2.0) or instantiation token (FMI 3.0)
+  - **Line 3**: `<guid>` — the GUID (FMI-2) or instantiation token (FMI-3)
 - For each **Model-Exchange** FMU (repeated `nb_fmu_me` times):
   - **Line 1**: `<fmu_filename> <fmi_version> <nx> <nz> <has_configuration_mode>` — no event mode flag
     - `fmu_filename`: Name of the `.fmu` file (e.g., `model.fmu`)
     - `fmi_version`: Integer (`2` or `3`)
-    - `nx` is deduced from `<Derivatives>` (FMI 2.0) or from the
-      `<ContinuousStateDerivative>` entries (FMI 3.0, array variables counted per element).
-    - `nz` is the `numberOfEventIndicators` attribute (FMI 2.0) or the number of
-      `<EventIndicator>` entries (FMI 3.0, array variables counted per element).
+    - `nx` is deduced from `<Derivatives>` (FMI-2) or from the
+      `<ContinuousStateDerivative>` entries (FMI-3, array variables counted per element).
+    - `nz` is the `numberOfEventIndicators` attribute (FMI-2) or the number of
+      `<EventIndicator>` entries (FMI-3, array variables counted per element).
   - **Line 2**: `<model_identifier>` — the ModelExchange `modelIdentifier`
   - **Line 3**: `<guid>`
 
@@ -175,14 +175,14 @@ The FMU's resources are stored in subdirectories named by index: `resources/00/`
 
 ### Configuration Mode (version 9)
 
-FMI 3.0 forbids `fmi3EnterConfigurationMode` on an FMU without structural parameter: the runtime puts in
+FMI-3 forbids `fmi3EnterConfigurationMode` on an FMU without structural parameter: the runtime puts in
 Configuration Mode only the FMUs with `<has_configuration_mode>` = 1, once after their instantiation and after each
 reset:
 
 - when the importer calls `fmi3EnterConfigurationMode` / `fmi3ExitConfigurationMode` on the container, they are
   forwarded to these FMUs; their start values `<RESET>=2` are set when they enter it, then the values that the
   importer sets;
-- otherwise (FMI 2.0 container, or importer without Configuration Mode), the container configures them before their
+- otherwise (FMI-2 container, or importer without Configuration Mode), the container configures them before their
   other start values: `fmi3EnterConfigurationMode`, start values `<RESET>=2`, values set on the container meanwhile,
   `fmi3ExitConfigurationMode`.
 
@@ -325,7 +325,7 @@ For each type (except binary and clock):
   - `<FMU_VR>`: The FMU's value reference for this port.
   - `<DIM>`: Dimension of the variable.
   - `<RESET>`: when the value is set:
-    - `0`: before the Initialization Mode (before `fmi2SetupExperiment` for an FMI 2.0 FMU);
+    - `0`: before the Initialization Mode (before `fmi2SetupExperiment` for an FMI-2 FMU);
     - `1`: also set again after entering the Initialization Mode (`input` causality);
     - `2` (version ≥ 9): in Configuration Mode (`structuralParameter` causality), see
       [Configuration Mode](#configuration-mode-version-9).

@@ -4,7 +4,7 @@ These tests check that:
 
 - names and descriptions coming from the embedded FMUs are escaped, so that the
   descriptor stays well-formed when one contains `&`, `<` or `"`;
-- the file is encoded in UTF-8, as FMI 2.0 and 3.0 require, whatever the locale;
+- the file is encoded in UTF-8, as FMI-2 and FMI-3 require, whatever the locale;
 - the FMI-2 `<Unknown index>` entries of `<Outputs>` point to the outputs, also
   when `ts_multiplier`, `solver` or profiling variables are present;
 - the initial unknowns leave out the outputs that copy `initial="exact"` from

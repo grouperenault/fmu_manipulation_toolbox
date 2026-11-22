@@ -10,7 +10,7 @@
 #include "logger.h"
 
 /*
- * FMI-3.0 implementation
+ * FMI-3 implementation
  */
 
 /*----------------------------------------------------------------------------
@@ -89,10 +89,10 @@ fmi3Instance fmi3InstantiateCoSimulation(
                 loggingOn);
     /* logging is available starting this point ! */
 
-    LOGGER_DEBUG("Container model loading...");
+    LOGGER_DEBUG("Loading the container model.");
 
     if (config_container(container, resourcePath)) {
-        LOGGER_ERROR("Cannot read container configuration.");
+        LOGGER_ERROR("Cannot read the configuration of the container.");
         container_free(container);
         return NULL;
     }
@@ -107,10 +107,10 @@ fmi3Instance fmi3InstantiateCoSimulation(
 void fmi3FreeInstance(fmi3Instance instance) {
     container_t* container = (container_t*)instance;
     if (!container)
-        return;     /* FMI-3.0: the call is ignored */
+        return;     /* FMI-3: the call is ignored */
     const logger_t *logger = &container->logger;
 
-    LOGGER_DEBUG("Container instance '%s' to be freed...", container->instance_name);
+    LOGGER_DEBUG("Freeing the container instance '%s'.", container->instance_name);
     container_free(container);
 
     return;
@@ -207,7 +207,7 @@ fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
                                                                                                                     \
         if (fmu_id < 0) {                                                                                           \
             if (fmu_vr + port->dimension > container-> type .nb_locals) {                                           \
-                LOGGER_ERROR("Container: failed to get " #fmi_type " vr=%d. Out of bounds access.", fmu_vr);        \
+                LOGGER_ERROR("Container: cannot get the " #fmi_type " %d: out of bounds.", fmu_vr);                 \
                 return fmi3Error;                                                                                   \
             }                                                                                                       \
             for(size_t j = 0; j < port->dimension; j += 1)                                                          \
@@ -219,7 +219,7 @@ fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
                                                                                                                     \
             fmu_status_t status = function_name (fmu, &fmu_vr, 1, &value[value_index], port->dimension);            \
             if (status != FMU_STATUS_OK) {                                                                          \
-                LOGGER_ERROR("Container: FMU '%s' failed to get " #fmi_type " vr=%d.", fmu->name, fmu_vr);          \
+                LOGGER_ERROR("Container: FMU '%s' failed to get the " #fmi_type " %d.", fmu->name, fmu_vr);         \
                 return fmi3Error;                                                                                   \
             }                                                                                                       \
         }                                                                                                           \
@@ -228,7 +228,7 @@ fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
     }                                                                                                               \
                                                                                                                     \
     if (value_index != nValues) {                                                                                   \
-        LOGGER_ERROR("%s expected %zu and called with nValues = %zu",                                               \
+        LOGGER_ERROR("%s: %zu value(s) expected, called with nValues = %zu.",                                       \
             __func__, value_index, nValues);                                                                        \
         return fmi3Error;                                                                                           \
     }                                                                                                               \
@@ -280,7 +280,7 @@ fmi3Status fmi3GetBinary(fmi3Instance instance,
                                               port->dimension);
 
             if (status != FMU_STATUS_OK) {
-                LOGGER_ERROR("Container: FMU '%s' failed to get binary vr=%d.", fmu->name, fmu_vr); 
+                LOGGER_ERROR("Container: FMU '%s' failed to get the binary %d.", fmu->name, fmu_vr); 
                 return fmi3Error;
             }
         }
@@ -288,7 +288,7 @@ fmi3Status fmi3GetBinary(fmi3Instance instance,
     }
 
     if (value_index != nValues) {
-        LOGGER_ERROR("%s expected %zu and called with nValues = %zu",
+        LOGGER_ERROR("%s: %zu value(s) expected, called with nValues = %zu.",
             __func__, value_index, nValues);
         return fmi3Error;
     }
@@ -319,7 +319,7 @@ fmi3Status fmi3GetClock(fmi3Instance instance,
 
             fmu_status_t status = fmuGetClock(fmu, &fmu_vr, 1, &values[i]);
             if (status != FMU_STATUS_OK) {
-                LOGGER_ERROR("Container: FMU '%s' failed to get clock vr=%d.", fmu->name, fmu_vr);
+                LOGGER_ERROR("Container: FMU '%s' failed to get the clock %d.", fmu->name, fmu_vr);
                 return fmi3Error;
             }
         }
@@ -352,7 +352,7 @@ fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
             if ((long)port->links[j].fmu_id >= 0)                                                                       \
                 continue;                                                                                               \
             if (fmu_vr + port->dimension > container-> type .nb_locals) {                                               \
-                LOGGER_ERROR("Container: failed to set " #fmi_type " vr=%d. Out of bounds access.", fmu_vr);            \
+                LOGGER_ERROR("Container: cannot set the " #fmi_type " %d: out of bounds.", fmu_vr);                     \
                 return fmi3Error;                                                                                       \
             }                                                                                                           \
             for(size_t k = 0; k < port->dimension; k += 1)                                                              \
@@ -362,7 +362,7 @@ fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
     }                                                                                                                   \
                                                                                                                         \
     if (value_index != nValues) {                                                                                       \
-        LOGGER_ERROR("%s expected %zu and called with nValues = %zu",                                                   \
+        LOGGER_ERROR("%s: %zu value(s) expected, called with nValues = %zu.",                                           \
             __func__, value_index, nValues);                                                                            \
         return fmi3Error;                                                                                               \
     }                                                                                                                   \
@@ -399,7 +399,7 @@ fmi3Status fmi3SetString(fmi3Instance instance, const fmi3ValueReference valueRe
                 continue;
             for(size_t k = 0; k < port->dimension; k += 1) {
                 if (fmu_string_copy(&container->strings.locals[fmu_vr + k], value[value_index + k])) {
-                    LOGGER_ERROR("Cannot allocate memory for SetString");
+                    LOGGER_ERROR("Cannot allocate memory for SetString.");
                     return fmi3Error;
                 }
             }
@@ -408,7 +408,7 @@ fmi3Status fmi3SetString(fmi3Instance instance, const fmi3ValueReference valueRe
     }
 
     if (value_index != nValues) {   
-        LOGGER_ERROR("%s expected %zu and called with nValues = %zu",
+        LOGGER_ERROR("%s: %zu value(s) expected, called with nValues = %zu.",
             __func__, value_index, nValues);
         return fmi3Error;
     }  
@@ -440,7 +440,7 @@ fmi3Status fmi3SetBinary(fmi3Instance instance,
             for(size_t k = 0; k < port->dimension; k += 1) {
                 if (fmu_binary_copy(&container->binaries.locals[fmu_vr + k], values[value_index + k],
                                     valueSizes[value_index + k])) {
-                    LOGGER_ERROR("Cannot allocate memory for SetBinary");
+                    LOGGER_ERROR("Cannot allocate memory for SetBinary.");
                     return fmi3Error;
                 }
             }
@@ -449,7 +449,7 @@ fmi3Status fmi3SetBinary(fmi3Instance instance,
     }
 
     if (value_index != nValues) {   
-        LOGGER_ERROR("%s expected %zu and called with nValues = %zu",
+        LOGGER_ERROR("%s: %zu value(s) expected, called with nValues = %zu.",
             __func__, value_index, nValues);
         return fmi3Error;
     }  
@@ -479,7 +479,7 @@ fmi3Status fmi3SetClock(fmi3Instance instance,
 
                 fmu_status_t status = fmuSetClock(fmu, &fmu_vr, 1, &values[i]);
                 if (status != FMU_STATUS_OK) {
-                    LOGGER_ERROR("Container: FMU '%s' failed to set clock vr=%d.", fmu->name, fmu_vr);
+                    LOGGER_ERROR("Container: FMU '%s' failed to set the clock %d.", fmu->name, fmu_vr);
                     return fmi3Error;
                 }
             }
@@ -672,7 +672,7 @@ fmi3Status fmi3GetIntervalDecimal(fmi3Instance instance,
         const int fmu_id = port->links[0].fmu_id;
 
         if (fmu_id < 0) {
-            LOGGER_ERROR("GetIntervalDecimal not available for vr=%d", valueReferences[i]);
+            LOGGER_ERROR("GetIntervalDecimal is not available for the clock %d.", valueReferences[i]);
             return fmi3Error;
         }
         else {

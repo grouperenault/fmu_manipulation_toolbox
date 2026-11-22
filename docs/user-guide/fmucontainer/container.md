@@ -59,8 +59,8 @@ The `fmucontainer` command creates a FMU, named Container, from a description fi
   outputs). They can only be linked between embedded FMUs.
   A time-based input clock (`intervalVariability` `constant`, `fixed`, `tunable`, `changing` or `countdown`) that is
   not linked is scheduled by the container, from its interval and shift: its first tick is at the start time plus its
-  shift (FMI 3.0, 2.2.8.2). A `triggered` input clock that is not linked never ticks.
-  The clocked variables are not exchanged in the Initialization Mode: FMI 3.0 allows it (2.2.7.2), but many FMUs refuse
+  shift (FMI-3 §2.2.8.2). A `triggered` input clock that is not linked never ticks.
+  The clocked variables are not exchanged in the Initialization Mode: FMI-3 allows it (2.2.7.2), but many FMUs refuse
   it. The local variable of a link between clocked variables keeps 0 (or empty) until the first tick of its clock, and
   the clocked input it feeds keeps its own start value meanwhile; the datalog shows these values.
 
@@ -72,10 +72,10 @@ To rebuild as a container an assembly of FMUs made in Simulink, see
 ## Default time step
 
 When no time step is given, the container deduces it from the step size of the embedded FMU's: the
-`fixedInternalStepSize` of `<CoSimulation>` for an FMI 3.0 FMU, else the `stepSize` of `<DefaultExperiment>` of
+`fixedInternalStepSize` of `<CoSimulation>` for an FMI-3 FMU, else the `stepSize` of `<DefaultExperiment>` of
 their `modelDescription.xml`:
 
-- the FMU's which declare a `fixedInternalStepSize` (FMI 3.0) or cannot handle a variable communication step size
+- the FMU's which declare a `fixedInternalStepSize` (FMI-3) or cannot handle a variable communication step size
   impose their step: the container step is their **least common multiple**, computed exactly (`0.1` and `0.25`
   give `0.5`, `0.2` and `0.3` give `0.6`);
 - if no FMU imposes its step, the container step is the largest of their step sizes;
@@ -96,8 +96,8 @@ parent at 0.01 s and a sub-container at 0.02 s — the container behaves like an
 - the internal step is made by the call of the importer that reaches its end, and the container is at the end of
   every communication step.
 
-An FMI 3.0 container declares its time step in the `fixedInternalStepSize` attribute of `<CoSimulation>`, even
-with the `TS_MULTIPLIER` input: the internal steps then stay on the grid of the time step. An FMI 3.0 sub-container
+An FMI-3 container declares its time step in the `fixedInternalStepSize` attribute of `<CoSimulation>`, even
+with the `TS_MULTIPLIER` input: the internal steps then stay on the grid of the time step. An FMI-3 sub-container
 thus imposes its step on its parent (see [Default time step](#default-time-step)).
 
 This makes it possible to gather FMU's of different rates in sub-containers of different steps, the parent at the
@@ -105,15 +105,15 @@ fastest rate (see [One sub-container per sample time](../../examples/simulink-to
 
 ## Termination requested by an embedded FMU
 
-When an embedded FMU asks to terminate the simulation (`terminateSimulation` of FMI 3.0, or `fmi2Discard` with
-`fmi2Terminated` of FMI 2.0), the container stops at the time reached and tells its importer:
+When an embedded FMU asks to terminate the simulation (`terminateSimulation` of FMI-3, or `fmi2Discard` with
+`fmi2Terminated` of FMI-2), the container stops at the time reached and tells its importer:
 
-- FMI 3.0 container: `fmi3DoStep` returns `terminateSimulation = true`, with the time reached in `lastSuccessfulTime`;
-- FMI 2.0 container: `fmi2DoStep` returns `fmi2Discard`, then `fmi2GetBooleanStatus(fmi2Terminated)` is true and
+- FMI-3 container: `fmi3DoStep` returns `terminateSimulation = true`, with the time reached in `lastSuccessfulTime`;
+- FMI-2 container: `fmi2DoStep` returns `fmi2Discard`, then `fmi2GetBooleanStatus(fmi2Terminated)` is true and
   `fmi2GetRealStatus(fmi2LastSuccessfulTime)` gives the time reached.
 
 The time reached is the end of the internal step of the container in which the request came, even when the FMU
-that asked to terminate did not complete this step (FMI 2.0 `fmi2Discard`): it is the time of the other embedded
+that asked to terminate did not complete this step (FMI-2 `fmi2Discard`): it is the time of the other embedded
 FMUs and of the outputs read by the importer. The rest of the communication step is not done, and a further step is
 refused: the importer ends the simulation.
 
@@ -150,7 +150,7 @@ initialized with the outputs of `A`, then `C` with the outputs of `B`.
 - The [reset of an embedded FMU](container-reset.md) initializes it again with the current values of its inputs,
   without propagation to the other FMU's.
 - The start values, then the values set by the importer of the container, are set **before** `fmi2SetupExperiment`
-  of an FMI 2.0 FMU (an FMU may use its parameters there, as the XCP service of
+  of an FMI-2 FMU (an FMU may use its parameters there, as the XCP service of
   [FMI-LS-XCP](ls-xcp.md#configuration-mode)): the values set by the importer prevail over the start values.
 - The structural parameters exposed by the container are set in the *Configuration Mode* of their FMU, see
   [FMI-LS-XCP](ls-xcp.md#configuration-mode).
@@ -197,7 +197,7 @@ The `fmucontainer` command supports the following options:
 fmucontainer -container assembly.csv:0.001 -fmu-directory ./my_fmus -fmi 3 -mt -profile
 ```
 
-This command builds an FMI-3.0 container from `assembly.csv` with a 1 ms time step, multi-threading enabled,
+This command builds an FMI-3 container from `assembly.csv` with a 1 ms time step, multi-threading enabled,
 and profiling active. The source FMUs are located in the `./my_fmus` directory.
 
 ![Routing](routing.png "Routing table")
@@ -305,7 +305,7 @@ SSP 1.0 and SSP 2.0 files are read (both versions share the same XML namespace).
 - **Systems**: a system inside a system becomes a nested container.
 - **Connections**: a connection between two components is a link; a connection between a connector of the system
   and a component exposes an input (an input or a parameter of the FMU) or an output of the container. Each
-  connection is checked against the FMUs: the connector must be a variable of the FMU (or an FMI 3.0 alias), of a
+  connection is checked against the FMUs: the connector must be a variable of the FMU (or an FMI-3 alias), of a
   causality that fits its end. A connector of the system that no connection uses is not exposed.
 - **Components without `source`**: SSP 2.0 allows a component without implementation. Such a component is
   ignored, with a warning, together with the connections, wires and parameter values attached to it: an assembly
@@ -396,8 +396,8 @@ The `auto*` options are written `false`, the routing being explicit. When the fi
 annotation **prevail** over those of the command line (a message says so); a file without annotation takes the
 command line.
 
-SSP 2.0 is written by default; `Assembly.write_ssp(filename, ssp_version="1.0")` writes SSP 1.0, the FMI 3.0 types
-being written as FMI 2.0 ones (`Real`, `Integer`).
+SSP 2.0 is written by default; `Assembly.write_ssp(filename, ssp_version="1.0")` writes SSP 1.0, the FMI-3 types
+being written as FMI-2 ones (`Real`, `Integer`).
 
 ```python
 from pathlib import Path
@@ -557,7 +557,7 @@ The `make_fmu` method accepts the following parameters:
 
 # FMI Support
 
-FMI-3.0 current support is limited.
+FMI-3 current support is limited.
 Feel free to [create a ticket](https://github.com/grouperenault/fmu_manipulation_toolbox/issues/new) to
 let us know your needs.
 
@@ -566,24 +566,24 @@ A container may embed FMU's in **Co-Simulation** mode as well as in **Model-Exch
 kinds can be freely mixed inside the same container. The mode used for each embedded FMU is detected
 automatically — see [Model-Exchange support](#model-exchange-support) below.
 
-## FMI-2.0 Containers
-Without any additional option, `fmucontainer` will produce FMI-2.0 containers. These containers may embed
+## FMI-2 Containers
+Without any additional option, `fmucontainer` will produce FMI-2 containers. These containers may embed
 - *FMU 2.0* in cosimulation mode without any particular limitation.
 - *FMU 2.0* in [Model-Exchange mode](#model-exchange-support).
 - *FMU 3.0* in cosimulation mode with limitations:
-  - Variables with FMI-3.0 specific types can be used for routing but cannot be exposed (as input, output, parameter or local).
-    Note: `boolean` is redefined in FMI-3.0: a `Boolean` output of an FMU-3.0 is exposed as an FMI-2.0 `Boolean`
+  - Variables with FMI-3 specific types can be used for routing but cannot be exposed (as input, output, parameter or local).
+    Note: `boolean` is redefined in FMI-3: a `Boolean` output of an FMU-3.0 is exposed as an FMI-2 `Boolean`
     (converted by the container); a `Boolean` input, parameter or local cannot be exposed.
   - Early Return feature is not supported
   - Arrays are not supported
 - *FMU 3.0* in [Model-Exchange mode](#model-exchange-support) (same type/exposition limitations as above).
 
-## FMI-3.0 Containers
-To produce FMI-3.0 compliant containers, use option `-fmi 3` in `fmucontainer` command line.
+## FMI-3 Containers
+To produce FMI-3 compliant containers, use option `-fmi 3` in `fmucontainer` command line.
 Those containers may embed
 
 - *FMU 2.0* in cosimulation mode with limitations:
-  - `boolean` variables can be used for routing; a `Boolean` output is exposed as an FMI-3.0 `Boolean` (converted
+  - `boolean` variables can be used for routing; a `Boolean` output is exposed as an FMI-3 `Boolean` (converted
     by the container), a `Boolean` input, parameter or local cannot be exposed.
 
 - *FMU 2.0* in [Model-Exchange mode](#model-exchange-support).
@@ -624,10 +624,10 @@ How it works:
   solver: the inputs fed by Co-Simulation FMU's or by the importer do not change during a step, they are
   set once per step.
 - The number of continuous states (`nx`) and of event indicators (`nz`) is computed automatically from
-  the FMU's `<ModelStructure>` (FMI-2.0 `<Derivatives>` / FMI-3.0 `<ContinuousStateDerivative>` and
+  the FMU's `<ModelStructure>` (FMI-2 `<Derivatives>` / FMI-3 `<ContinuousStateDerivative>` and
   `<EventIndicator>`). You can inspect these values with `fmudump`, which now reports `nx` and `nz` for
   any FMU providing Model-Exchange.
-- Both FMI-2.0 and FMI-3.0 Model-Exchange FMU's are supported, in either an FMI-2.0 or an FMI-3.0
+- Both FMI-2 and FMI-3 Model-Exchange FMU's are supported, in either an FMI-2 or an FMI-3
   container. The routing/exposition rules and type limitations listed above apply identically to
   Model-Exchange FMU's.
 

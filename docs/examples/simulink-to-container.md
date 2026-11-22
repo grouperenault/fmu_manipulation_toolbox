@@ -4,7 +4,7 @@ This page explains how to turn an assembly of FMUs built in Simulink (FMU blocks
 Import*, Co-Simulation) into an equivalent [FMU Container](../user-guide/fmucontainer/container.md), and what to
 check so that both give the same results.
 
-The behaviours described here were measured on MATLAB R2024b with FMI 2.0 Co-Simulation FMUs, by tracing the FMI
+The behaviours described here were measured on MATLAB R2024b with FMI-2 Co-Simulation FMUs, by tracing the FMI
 calls received by the FMUs in both importers.
 
 ## Mapping of the concepts

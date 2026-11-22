@@ -20,7 +20,7 @@ profile_t *profile_new(const logger_t *logger) {
         profile->current_tic = 0;
         profile->total_elapsed = 0.0;
     } else {
-        LOGGER_ERROR("Cannot allocate profiling structure.");
+        LOGGER_ERROR("Cannot allocate the profiling structure.");
     }
 
     return profile;

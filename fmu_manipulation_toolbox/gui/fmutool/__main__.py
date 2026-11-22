@@ -1,4 +1,5 @@
 import argparse
+import html
 import logging
 import os.path
 import re
@@ -8,7 +9,7 @@ import textwrap
 from functools import partial
 
 from PySide6.QtCore import QEvent, Qt
-from PySide6.QtGui import QAction, QTextCursor
+from PySide6.QtGui import QAction, QTextBlockFormat, QTextCursor, QTextFormat, QTextLength
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -26,10 +27,18 @@ from PySide6.QtWidgets import (
 
 from fmu_manipulation_toolbox.checker import OperationLsRefCheck, get_checkers
 from fmu_manipulation_toolbox.compiler import OperationCompileSources, Toolchain
-from fmu_manipulation_toolbox.gui.helper import Application, DropZoneWidget, LastDirectory, get_fmu_icon_path
+from fmu_manipulation_toolbox.gui.helper import (
+    Application,
+    DropZoneWidget,
+    LastDirectory,
+    exception_message,
+    get_fmu_icon_path,
+)
 from fmu_manipulation_toolbox.gui.log import GuiLogHandler, LogWidget, busy_cursor, window_log_context
+from fmu_manipulation_toolbox.gui.style import log_color
 from fmu_manipulation_toolbox.help import Help
 from fmu_manipulation_toolbox.operations import (
+    FMUError,
     OperationError,
     OperationKeepOnlyRegexp,
     OperationMergeTopLevel,
@@ -441,8 +450,10 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         self.show()
 
         with window_log_context(self):
-            logger.info(" " * 80 + f"Version {version}")
-            logger.info(self.__doc__)
+            logger.info(f"FMU Tool version {version}.")
+        # The welcome text is not a record: it stays in the log area only.
+        welcome = html.escape(self.__doc__.strip()).replace("\n", "<br>")
+        self.log_widget.insertHtml(f'<br><span style="color:{log_color["INFO"]}">{welcome}</span><br><br>')
 
     def load(self, fmu_path: str):
         """Load an FMU file programmatically."""
@@ -524,8 +535,12 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
                                                         default_name=os.path.basename(fmu.fmu_filename))
             if filename:
                 with busy_cursor(window=self):
-                    fmu.repack(filename)
-                    logger.info(f"Modified version saved as {filename}.")
+                    try:
+                        fmu.repack(filename)
+                    except (FMUError, OSError) as e:
+                        logger.critical(exception_message(e))
+                    else:
+                        logger.info(f"Modified version saved as '{filename}'.")
 
     def save_log(self):
         filename = LastDirectory.get_save_file_name(self, "Select a file", "TXT files (*.txt)",
@@ -534,8 +549,8 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
             try:
                 with open(filename, "w", encoding="utf-8") as file:
                     file.write(str(self.log_widget.toPlainText()))
-            except Exception as e:
-                logger.error(f"{e}")
+            except OSError as e:
+                logger.critical(f"Cannot save the log: {e}.")
 
     def add_operation(self, name, usage, severity, operation, prompt=None, prompt_file=None, arg=None,
                       func=None, modifies=False, alternative=None) -> OperationButton:
@@ -601,7 +616,7 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
             try:
                 operation = OperationCompileSources(**self.compile_parameters())
             except ValueError as error:                 # unbalanced quotes
-                logger.error(f"Invalid options: {error}.")
+                logger.critical(f"Invalid options: {error}.")
             else:
                 if self.apply_operation(operation):
                     self.set_modified()
@@ -667,25 +682,36 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         with window_log_context(self):
             return self._apply_operation(operation)
 
+    def _insert_rule(self):
+        """Insert a horizontal rule at the end of the log area; the text that follows is in a plain block."""
+        cursor = self.log_widget.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        rule = QTextBlockFormat()
+        rule.setProperty(QTextFormat.Property.BlockTrailingHorizontalRulerWidth,
+                         QTextLength(QTextLength.Type.PercentageLength, 100))
+        cursor.insertBlock(rule)
+        cursor.insertBlock(QTextBlockFormat())
+        self.log_widget.setTextCursor(cursor)
+
     def _apply_operation(self, operation) -> bool:
         if not self.dropped_fmu.fmu:
             return False
         self.log_widget.moveCursor(QTextCursor.MoveOperation.End)
         fmu_filename = os.path.basename(self.dropped_fmu.fmu.fmu_filename)
-        logger.info('-' * 100)
+        self._insert_rule()
         self.log_widget.insertHtml(f"<strong>{fmu_filename}: {operation}</strong><br>")
 
         apply_on = self.filter_list.get()
         if apply_on:
             self.log_widget.insertHtml("<i>Applied only for ports with  causality = " +
                                        ", ".join(apply_on) + "</i><br>")
-        logger.info('-' * 100)
         with busy_cursor():
             try:
                 self.dropped_fmu.fmu.apply_operation(operation, apply_on=apply_on)
                 succeeded = True
             except Exception as e:
-                logger.error(f"{e}")
+                logger.debug(f"{operation} failed.", exc_info=True)
+                logger.critical(exception_message(e))
                 succeeded = False
 
         scroll_bar = self.log_widget.verticalScrollBar()

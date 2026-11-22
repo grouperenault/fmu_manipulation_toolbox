@@ -472,5 +472,6 @@ def test_run_task_reports_an_exception_of_the_task(qtbot):
         qtbot.addWidget(dialog)
     finally:
         logger.setLevel(previous_level)
-    assert dialog.text.toPlainText().splitlines() == ["CRITICAL: boom", "❌ Failing failed"]
+    # An unexpected exception keeps its type (docs/developer/logging.md).
+    assert dialog.text.toPlainText().splitlines() == ["CRITICAL: ValueError: boom", "❌ Failing failed."]
     assert dialog.succeeded is False

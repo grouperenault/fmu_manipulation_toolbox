@@ -39,7 +39,7 @@ static void stub_xcp_log(const stub_xcp_t *xcp, const char *line) {
 }
 
 
-/* resource_location: a path (FMI 3.0) or a "file:" URI (FMI 2.0). */
+/* resource_location: a path (FMI-3) or a "file:" URI (FMI-2). */
 static void stub_xcp_init(stub_xcp_t *xcp, const char *resource_location) {
     const char *path = resource_location ? resource_location : "";
 

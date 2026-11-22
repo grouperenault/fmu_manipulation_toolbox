@@ -342,7 +342,7 @@ Here's what each rule means:
     # Enable multi-threading for parallel execution
     fmucontainer -container container.csv:0.1 -mt
     
-    # Generate an FMI 3.0 container
+    # Generate an FMI-3 container
     fmucontainer -container container.csv:0.1 -fmi 3
     ```
 

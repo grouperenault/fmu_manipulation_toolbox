@@ -7,7 +7,7 @@
 #include "logger.h"
 
 /*
- * logger facilities conforming to FMI-2.0 and 3.0 specifications. Each instance of the container has its own
+ * logger facilities conforming to FMI-2 and FMI-3 specifications. Each instance of the container has its own
  * logger (container_t.logger).
  */
 

@@ -127,8 +127,14 @@ def test_fmi_version(fmi_version, expected):
     (b'<fmiModelDescription fmiVersion="2.0"><Info>x < y</Info></fmiModelDescription>', "not well-formed"),
 ], ids=["fmi1", "fmi7", "no-version", "wrong-root", "not-well-formed"])
 def test_load_errors(descriptor, message):
-    with pytest.raises(ModelDescriptionError, match=message):
+    with pytest.raises(ModelDescriptionError, match=message) as error:
         ModelDescription.load(descriptor)
+    assert str(error.value).endswith(".")               # a sentence (docs/developer/logging.md)
+
+
+def test_unsupported_version_names_the_standard():
+    with pytest.raises(ModelDescriptionError, match="expected FMI-2 or FMI-3.$"):
+        ModelDescription.load(fmi2().replace(b'fmiVersion="2.0"', b'fmiVersion="1.0"'))
 
 
 def test_missing_model_variables():

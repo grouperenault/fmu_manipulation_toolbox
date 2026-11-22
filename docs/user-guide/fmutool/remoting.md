@@ -17,7 +17,11 @@ the user mix bitness between fmi-importer and the DLL contained into the FMU.
 
 ## Limitation
 
-Currently, only Co-simulation mode for FMI 2.0 is supported.
+Currently, only Co-simulation mode for FMI-2 is supported.
+
+The client and server binaries of the remoting are shipped with the toolbox (`resources/win32`, `resources/win64`).
+When one of them is missing from the installed package, the operation fails (`Cannot add the remoting client: '…'
+is missing.`) and the FMU is left unchanged: it is never saved without its remoting.
 
 
 ## Available configurations
@@ -36,7 +40,7 @@ Current implementation relies on Shared Memory and Semaphore. It is available on
 Primary OS is Windows.
 
 This version supports:
-   - ONLY FMI 2.0, ONLY for co-simulation mode
+   - ONLY FMI-2, ONLY for co-simulation mode
    - Strings are NOT supported
 
 ### Sequence Diagram

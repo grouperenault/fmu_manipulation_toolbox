@@ -47,11 +47,11 @@ def validate_ssd(content: bytes, label: str) -> int:
     try:
         errors = list(schema.iter_errors(content.decode("utf-8")))
     except (UnicodeDecodeError, xmlschema.XMLSchemaException, ET.ParseError) as error:
-        logger.warning(f"'{label}' cannot be validated against the SSP schema: {error}")
+        logger.warning(f"'{label}' cannot be validated against the SSP schema: {error}.")
         return 1
     for validation_error in errors[:MAX_SSD_VALIDATION_WARNINGS]:
         where = f" (at {validation_error.path})" if validation_error.path else ""
-        logger.warning(f"'{label}' is not valid against the SSP schema{where}: {validation_error.reason}")
+        logger.warning(f"'{label}' is not valid against the SSP schema{where}: {validation_error.reason.rstrip('.')}.")
     if len(errors) > MAX_SSD_VALIDATION_WARNINGS:
         logger.warning(f"'{label}': {len(errors) - MAX_SSD_VALIDATION_WARNINGS} more validation error(s).")
     return len(errors)
@@ -90,7 +90,7 @@ class SSDParser:
             by (id of its system node, element name, `None` for the system itself), then by connector name.
         units (dict[str, dict[str, str]]): `ssc:Unit` definitions: the attributes of their `ssc:BaseUnit`.
 
-    Each connection is checked against the FMUs it joins: the connector is a variable of the FMU (or an FMI 3.0
+    Each connection is checked against the FMUs it joins: the connector is a variable of the FMU (or an FMI-3
     alias), of a causality that fits its end (an output starts a link or an exposed output, an input ends a link,
     an input or a parameter is exposed as an input of the container). Not checked: architecture wires, whose
     connectors are not variables, the components without `source` (ignored) and the sub-systems (no FMU).
@@ -119,7 +119,7 @@ class SSDParser:
     #: Connection transformations (SSP 1.0 §5.3.6): the container cannot apply them.
     TRANSFORMATIONS = ("LinearTransformation", "BooleanMappingTransformation", "IntegerMappingTransformation",
                        "EnumerationMappingTransformation")
-    #: Type elements of a connector: SSP 1.0, and the FMI 3.0 types of SSP 2.0.
+    #: Type elements of a connector: SSP 1.0, and the FMI-3 types of SSP 2.0.
     CONNECTOR_TYPES = ("Real", "Integer", "Boolean", "String", "Enumeration", "Binary", "Clock", "Float32",
                        "Float64", "Int8", "UInt8", "Int16", "UInt16", "Int32", "UInt32", "Int64", "UInt64")
     #: Causalities a connector may have, by its role in a connection.
@@ -186,7 +186,7 @@ class SSDParser:
                 system structure description, refers to unknown elements, or uses
                 an SSP construction that would change the container (see the class).
         """
-        logger.debug(f"Analysing {ssd_filename}")
+        logger.debug(f"Analysing '{ssd_filename}'.")
         self.ssd_filename = ssd_filename
         prefix = f"{{{self.SSD_NAMESPACE}}}"
         common = f"{{{self.SSC_NAMESPACE}}}"
@@ -198,7 +198,7 @@ class SSDParser:
                         if element.tag != f"{prefix}SystemStructureDescription":
                             raise AssemblyError(f"'{ssd_filename}' is not an SSP 1.0 system structure description: "
                                                 f"root element is <{element.tag}>, expected "
-                                                f"<SystemStructureDescription> in namespace '{self.SSD_NAMESPACE}'")
+                                                f"<SystemStructureDescription> in namespace '{self.SSD_NAMESPACE}'.")
                         root_checked = True
                     if self._connection_attrs is not None:
                         self._connection_child(event, element)
@@ -220,13 +220,13 @@ class SSDParser:
                             self._binding["values"] += self._parameter_values(element, "inline values")
                         self.end_element(tag)
         except ET.ParseError as error:
-            raise AssemblyError(f"'{ssd_filename}' is not well-formed XML: {error}") from error
+            raise AssemblyError(f"'{ssd_filename}' is not well-formed XML: {error}.") from error
         except KeyError as error:
             raise AssemblyError(f"'{ssd_filename}': reference to an unknown element or missing attribute "
-                                f"{error}") from error
+                                f"{error}.") from error
 
         if self.root is None:
-            raise AssemblyError(f"'{ssd_filename}': no <System> found in namespace '{self.SSD_NAMESPACE}'")
+            raise AssemblyError(f"'{ssd_filename}': no <System> found in namespace '{self.SSD_NAMESPACE}'.")
         self._check_units()
         self._warn_unused_dictionaries()
         self._apply_parameters()
@@ -243,7 +243,7 @@ class SSDParser:
             self._transformation = None
 
         elif tag_name == 'System':
-            logger.info(f"SSP System: {attrs['name']}")
+            logger.info(f"SSP system '{attrs['name']}'.")
             filename = attrs['name'] + ".fmu"
             self.fmu_filenames[attrs['name']] = filename
             node = AssemblyNode(filename, **self.node_attrs)
@@ -264,7 +264,7 @@ class SSDParser:
             if 'source' not in attrs:
                 # Kept although it changes the container (D13 of the SSP beta plan): MIC modeler writes components
                 # without source when the FMU of an instance is not available.
-                logger.warning(f"Component '{attrs['name']}' has no source FMU. It is ignored, "
+                logger.warning(f"Component '{attrs['name']}' has no source FMU: it is ignored, "
                                f"with its connections.")
                 self.ignored_components.add(attrs['name'])
                 self._elements[id(self.node_stack[-1])][attrs['name']] = ("ignored", None)
@@ -283,7 +283,7 @@ class SSDParser:
             self._elements[id(node)][attrs['name']] = ("component", (node, fmu_name, str(source)))
             node.add_fmu(fmu_name, filename)
             self._component_fmu = fmu_name
-            logger.debug(f"Component {attrs['name']} => {fmu_name}")
+            logger.debug(f"Component '{attrs['name']}' is the FMU '{fmu_name}'.")
 
         elif tag_name == 'SignalDictionaryReference':
             self._owners.append(("dictionary", attrs['name']))
@@ -382,8 +382,8 @@ class SSDParser:
               element.tag == f"{{{self.ARCHITECTURE_WIRE_NAMESPACE}}}Wire"):
             orientation = element.get("orientation", "undirected")
             if orientation not in ArchitectureWire.ORIENTATIONS:
-                logger.warning(f"Architecture wire with unknown orientation '{orientation}'. "
-                               f"It is read as 'undirected'.")
+                logger.warning(f"Architecture wire with unknown orientation '{orientation}': "
+                               f"it is read as 'undirected'.")
                 orientation = "undirected"
             self._wire_orientation = orientation
         elif (event == "start" and local_name in self.TRANSFORMATIONS and
@@ -399,8 +399,8 @@ class SSDParser:
     def _add_connection(self, attrs: dict[str, str]):
         """Turn a connection into a link, an exposed input or an exposed output."""
         if attrs.get('startElement') in self.ignored_components or attrs.get('endElement') in self.ignored_components:
-            logger.debug(f"Connection {attrs.get('startElement')}/{attrs['startConnector']} -> "
-                         f"{attrs.get('endElement')}/{attrs['endConnector']} ignored: it involves an ignored "
+            logger.debug(f"Connection '{attrs.get('startElement')}/{attrs['startConnector']}' → "
+                         f"'{attrs.get('endElement')}/{attrs['endConnector']}' ignored: it involves an ignored "
                          f"component.")
             return
         if self._transformation is not None:
@@ -475,14 +475,14 @@ class SSDParser:
                                 f"not {' or '.join(f'an {c}' if c[0] in 'aeiou' else f'a {c}' for c in causalities)}.")
 
     def _fmu_variables(self, element: str, source: str) -> dict[str, str]:
-        """Causality of each variable (and FMI 3.0 alias) of the FMU `source` of the archive."""
+        """Causality of each variable (and FMI-3 alias) of the FMU `source` of the archive."""
         if source not in self._variables:
             _, variables = self._fmu_description(element, source)
             self._variables[source] = {name: variable.causality for name, variable in variables.items()}
         return self._variables[source]
 
     def _fmu_description(self, element: str, source: str) -> tuple[ModelDescription, dict[str | None, ModelVariable]]:
-        """Description of the FMU `source` of the archive, and its variables by name (FMI 3.0 aliases included)."""
+        """Description of the FMU `source` of the archive, and its variables by name (FMI-3 aliases included)."""
         if source not in self._fmus:
             try:
                 with zipfile.ZipFile(BytesIO(self.zin.read(source))) as fmu:
@@ -547,7 +547,7 @@ class SSDParser:
                                f"default experiment is not a number: it is ignored.")
                 continue
             setattr(self.root, field, value)
-            logger.info(f"'{self.ssd_filename}': {attribute} of the container = {value} (SSP default experiment)")
+            logger.info(f"'{self.ssd_filename}': {attribute} of the container is {value} (SSP default experiment).")
 
     # ----------------------------------------------------------------------------------------- parameter values
     def _start_binding(self, attrs):
@@ -593,7 +593,7 @@ class SSDParser:
             root = ET.fromstring(content)
         except ET.ParseError as error:
             raise AssemblyError(f"'{self.ssd_filename}': the parameter source '{source}' of {owner} is not "
-                                f"well-formed XML: {error}") from error
+                                f"well-formed XML: {error}.") from error
         return self._parameter_values(root, f"'{source}'")
 
     def _parameter_values(self, element: ET.Element, label: str) -> list[tuple[str | None, str, str, str | None]]:
@@ -641,7 +641,7 @@ class SSDParser:
         for node, fmu_name, source, (variable, value_type, value, unit) in targets.values():
             node.add_start_value(fmu_name, variable, self._start_value(fmu_name, source, variable, value_type, value,
                                                                        unit))
-            logger.debug(f"Start value of {fmu_name}/{variable} = {value} (SSP parameter binding)")
+            logger.debug(f"Start value of '{fmu_name}/{variable}' is '{value}' (SSP parameter binding).")
 
     def _component_targets(self, node, component: str, name: str):
         kind, details = self._elements.get(id(node), {}).get(component, (None, None))
@@ -704,7 +704,7 @@ class SSDParser:
 
     @staticmethod
     def _declared_type(md: ModelDescription, port: ModelVariable) -> ET.Element | None:
-        """The type definition of `port` (`<SimpleType>` child for FMI 2.0, `<…Type>` for FMI 3.0)."""
+        """The type definition of `port` (`<SimpleType>` child for FMI-2, `<…Type>` for FMI-3)."""
         name, definitions = port.get("declaredType"), md.root.find("TypeDefinitions")
         if not name or definitions is None:
             return None
@@ -751,11 +751,11 @@ class SSDParser:
         """Record an architecture wire between two components of the current system."""
         start, end = attrs.get('startElement'), attrs.get('endElement')
         if start is None or end is None:
-            logger.warning(f"Architecture wire on connector '{attrs['startConnector']}' -> "
+            logger.warning(f"Architecture wire on connector '{attrs['startConnector']}' → "
                            f"'{attrs['endConnector']}' is ignored: it must join two components.")
             return
         if start in self.ignored_components or end in self.ignored_components:
-            logger.debug(f"Architecture wire {start} -> {end} ignored: it involves an ignored component.")
+            logger.debug(f"Architecture wire '{start}' → '{end}' ignored: it involves an ignored component.")
             return
         self.node_stack[-1].add_architecture_wire(self.fmu_filenames[start], self.fmu_filenames[end],
                                                   orientation, attrs.get('description'))
@@ -805,7 +805,7 @@ CONTAINER_OPTIONS = {"step_size": "stepSize", "mt": "mt", "profiling": "profilin
                      "auto_parameter": "autoParameter", "auto_local": "autoLocal", "ts_multiplier": "tsMultiplier",
                      "reset_ports": "resetPorts", "mt_threshold": "mtThreshold"}
 
-#: SSP 1.0 knows the FMI 2.0 types only.
+#: SSP 1.0 knows the FMI-2 types only.
 SSP1_TYPES = {"Float32": "Real", "Float64": "Real", "Int8": "Integer", "UInt8": "Integer", "Int16": "Integer",
               "UInt16": "Integer", "Int32": "Integer", "UInt32": "Integer", "Int64": "Integer", "UInt64": "Integer"}
 
@@ -826,7 +826,7 @@ class SSPWriter:
 
     Args:
         assembly (Assembly): The assembly to write; its FMUs must be readable from its `fmu_directory`.
-        ssp_version (str): `"2.0"` (default) or `"1.0"`, which writes the FMI 3.0 types as FMI 2.0 ones.
+        ssp_version (str): `"2.0"` (default) or `"1.0"`, which writes the FMI-3 types as FMI-2 ones.
     """
 
     def __init__(self, assembly, ssp_version: str = "2.0"):
@@ -1043,7 +1043,7 @@ class SSPWriter:
         return interface
 
     def _fmi_version(self, node) -> int:
-        """FMI version of the interface of a sub-container: 3 when one of its FMUs is FMI 3.0 (its types)."""
+        """FMI version of the interface of a sub-container: 3 when one of its FMUs is FMI-3 (its types)."""
         versions = {self._description(self.fmu_directory / node.fmu_path(name))[0].fmi_version
                     for name in node.fmu_names_list}
         versions |= {self._fmi_version(child) for child in node.children.values()}

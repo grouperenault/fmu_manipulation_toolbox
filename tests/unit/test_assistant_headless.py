@@ -362,3 +362,17 @@ def test_the_lint_checks_each_instance(loaded, ball):
 
     assert ("not-checked", "info") not in findings
     assert report["error_count"] == 0
+
+
+def test_actions_are_logged_as_sentences(bridge, ball, caplog):
+    """The actions of the assistant are told as sentences, with the same prefix as in the Container Builder
+    (docs/developer/logging.md)."""
+    import logging
+
+    with caplog.at_level(logging.INFO, logger="fmu_manipulation_toolbox"):
+        bridge.add_fmu(str(ball / "bb_position.fmu"))
+        bridge.add_fmu(str(ball / "bb_velocity.fmu"))
+        bridge.add_link("bb_velocity.fmu", "velocity", "bb_position.fmu", "velocity")
+    assert "AI Assistant: FMU 'bb_position.fmu' added." in caplog.messages
+    assert "AI Assistant: link 'bb_velocity.fmu/velocity' → 'bb_position.fmu/velocity' added." in caplog.messages
+    assert not any(message.startswith("[AI]") for message in caplog.messages)

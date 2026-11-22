@@ -46,9 +46,12 @@ class CheckNames(OperationAbstract):
     return str(path)
 
 
-def test_checker_with_model_variable_is_added(tmp_path):
-    add_from_file(_write_checker(tmp_path, "ModelVariable"))
+def test_checker_with_model_variable_is_added(tmp_path, caplog):
+    filename = _write_checker(tmp_path, "ModelVariable")
+    with caplog.at_level(logging.INFO, logger="fmu_manipulation_toolbox"):
+        add_from_file(filename)
     assert "CheckNames" in [checker_class.__name__ for checker_class in get_checkers()]
+    assert f"Checker 'CheckNames' loaded from '{filename}'." in caplog.messages
 
 
 def test_checker_importing_fmuport_is_reported(tmp_path, caplog):

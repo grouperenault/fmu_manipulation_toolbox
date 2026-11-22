@@ -45,9 +45,9 @@ static void library_load_error(const logger_t *logger, const char* library_filen
     libray_analyse(logger, dll_db, library_filename);
     hash_free(dll_db);
 #else
-    LOGGER_ERROR("dlopen Error: %s", dlerror());
+    LOGGER_ERROR("dlopen error: %s.", dlerror());
 #endif
-    LOGGER_ERROR("Cannot load `%s'", library_filename);
+    LOGGER_ERROR("Cannot load '%s'.", library_filename);
 
     return; /* Never reached */
 }
@@ -161,13 +161,13 @@ static libray_status_t* libray_try_load(const char* filename) {
 static void libray_log_status(const logger_t *logger, const char* filename, libray_status_t* status) {
     switch (*status) {
     case LIBRARY_DLL_OK:
-        LOGGER_WARNING("DLL `%s' is found.", filename);
+        LOGGER_WARNING("DLL '%s' is found.", filename);
         break;
     case LIBRARY_DLL_NOT_FOUND:
-        LOGGER_WARNING("DLL `%s' is not found.", filename);
+        LOGGER_WARNING("DLL '%s' is not found.", filename);
         break;
     case LIBRARY_DLL_MISSING_DEPENDENCIES:
-        LOGGER_WARNING("DLL `%s' has missing dependencies.", filename);
+        LOGGER_WARNING("DLL '%s' has missing dependencies.", filename);
         break;
     }
 }
@@ -198,7 +198,7 @@ static void libray_analyse_deeply(const logger_t *logger, hash_t* dll_db, const 
     char dependency_path[MAX_PATH];
     PLOADED_IMAGE image = ImageLoad(filename, NULL);
     if (!image) {
-        LOGGER_ERROR("Cannot ImageLoad(%s)", filename);
+        LOGGER_ERROR("Cannot load '%s' (ImageLoad).", filename);
     }
     else {
         if (image->FileHeader->OptionalHeader.NumberOfRvaAndSizes >= 2) {

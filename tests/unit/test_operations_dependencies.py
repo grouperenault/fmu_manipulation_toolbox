@@ -44,7 +44,7 @@ def _remove_and_parse(tmp_path, descriptor: str, regexp: str) -> ET.Element:
 
 
 # --------------------------------------------------------------------------- #
-#                                   FMI 2.0                                     #
+#                                   FMI-2                                     #
 # --------------------------------------------------------------------------- #
 FMI2_DESCRIPTOR = """<?xml version="1.0" encoding="UTF-8"?>
 <fmiModelDescription fmiVersion="2.0" modelName="dep" guid="{abc}">
@@ -95,7 +95,7 @@ def test_fmi2_removing_middle_port_renumbers_and_rewires_dependencies(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
-#                                   FMI 3.0                                     #
+#                                   FMI-3                                     #
 # --------------------------------------------------------------------------- #
 FMI3_DESCRIPTOR = """<?xml version="1.0" encoding="UTF-8"?>
 <fmiModelDescription fmiVersion="3.0" modelName="dep" instantiationToken="{abc}">

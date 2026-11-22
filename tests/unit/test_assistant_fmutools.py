@@ -264,7 +264,7 @@ def test_an_invalid_regular_expression_is_reported(fmu, tmp_path):
 
 
 def test_an_operation_can_be_restricted_to_a_type_and_a_variability(data_dir, tmp_path):
-    """On FMI 3, `Real` selects the Float64 parameters; `tunable` keeps the fixed one."""
+    """On FMI-3, `Real` selects the Float64 parameters; `tunable` keeps the fixed one."""
     fmu = data_dir / "compile" / "3.0" / "BouncingBall.fmu"
     output = tmp_path / "filtered.fmu"
 
@@ -290,7 +290,7 @@ def test_the_port_pages_select_like_the_operations():
              {"name": "t", "type": "Float64", "causality": "independent"}]
 
     assert [port["name"] for port in select_ports(ports, 3, types=["Real"])] == ["p", "t"]
-    # Undeclared variabilities: the defaults of FMI 3 (parameter: fixed, integer: discrete).
+    # Undeclared variabilities: the defaults of FMI-3 (parameter: fixed, integer: discrete).
     assert [port["name"] for port in select_ports(ports, 3, variabilities=["fixed"])] == ["p"]
     assert [port["name"] for port in select_ports(ports, 3, variabilities=["discrete"])] == ["u"]
     # Any causality can be listed, not only those an operation can be restricted to.

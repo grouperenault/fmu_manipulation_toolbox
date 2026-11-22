@@ -1,7 +1,7 @@
 """Unit tests of `fmu_manipulation_toolbox.compiler` that do not need a C compiler.
 
 They cover the name of the binaries directory of the host platform, the suffix of the shared library and the
-reading of the build description (FMI 2.0 `<SourceFiles>`, FMI 3.0 `sources/buildDescription.xml`) of the
+reading of the build description (FMI-2 `<SourceFiles>`, FMI-3 `sources/buildDescription.xml`) of the
 Reference FMUs of `tests/data/compile`.
 
 The host platform is faked by patching `platform.system()` and `platform.machine()`.
@@ -176,7 +176,7 @@ def test_gcc_commands_fmi3(data_dir, tmp_path, monkeypatch):
 
 @pytest.mark.fmi2
 def test_gcc_commands_fmi2(data_dir, tmp_path, monkeypatch):
-    """FMI 2.0 headers have no override mechanism: only `DISABLE_PREFIX`."""
+    """FMI-2 headers have no override mechanism: only `DISABLE_PREFIX`."""
     monkeypatch.setattr(platform, "system", lambda: "Darwin")
     commands, sources = _commands(data_dir / "compile" / "2.0" / "BouncingBall.fmu", GCC, tmp_path)
     compilation, link = commands

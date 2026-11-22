@@ -101,15 +101,15 @@ typedef struct {
                           F M U _ S T A R T _ xxx _ T
 ----------------------------------------------------------------------------*/
 
-#define DECLARE_START_TYPE(variable, fmi_type, c_type)  \
-typedef struct {                                        \
-    unsigned long               nb;                     \
-    struct {                                            \
-        fmu_vr_t                vr;                     \
+#define DECLARE_START_TYPE(variable, fmi_type, c_type)                     \
+typedef struct {                                                           \
+    unsigned long               nb;                                        \
+    struct {                                                               \
+        fmu_vr_t                vr;                                        \
         unsigned int            dimension;  /* number of values (array) */ \
-        int                     reset;                  \
-        c_type                  *value;                 \
-    } *start_values;                                    \
+        int                     reset;                                     \
+        c_type                  *value;                                    \
+    } *start_values;                                                       \
 } fmu_start_ ## variable ## _t;
 
 FOR_ALL_NUMERIC_TYPES(DECLARE_START_TYPE)
@@ -423,7 +423,7 @@ typedef struct {
     bool                        support_event;
     bool                        need_event_update;
 
-    /* FMI-3.0 FMU with structural parameters set by the container (<has_configuration_mode> of container.txt):
+    /* FMI-3 FMU with structural parameters set by the container (<has_configuration_mode> of container.txt):
        they are set in Configuration Mode only, once after each instantiation or reset. */
     bool                        has_configuration_mode;
     bool                        in_configuration_mode;
@@ -488,7 +488,7 @@ extern int fmu_load_from_directory(struct container_s *container, int i,
                                    fmu_kind_t kind);
 extern void fmu_unload(fmu_t *fmu);
 
-/* Thin FMI-2/3 dispatchers for the Model Exchange primitives (used by
+/* Thin FMI-2/FMI-3 dispatchers for the Model Exchange primitives (used by
    the collective Euler solver in solver.c). They are stateless: state buffers
    are passed in by the solver. */
 extern fmu_status_t fmuSetTime(fmu_t *fmu, double t);

@@ -6,7 +6,7 @@ structure, and writes it back. Operations modify the tree **in place**, so
 everything they do not touch (annotations, aliases, comments, namespaces,
 type definitions, ...) is preserved, and escaping is done by the serializer.
 
-Conformity with FMI 2.0.5 and FMI 3.0.2 (fmi-standard.org):
+Conformity with FMI-2.0.5 and FMI-3.0.2 (fmi-standard.org):
 
 - The file is written in UTF-8 and starts with the XML declaration, as required
   by both standards (FMI-2 §2.2, FMI-3 §2.4: "The first line of an XML file
@@ -38,7 +38,7 @@ XML_DECLARATION = b'<?xml version="1.0" encoding="UTF-8"?>\n'
 
 
 class ModelDescriptionError(Exception):
-    """Raised when a `modelDescription.xml` cannot be loaded or is not an FMI 2.0/3.0 descriptor."""
+    """Raised when a `modelDescription.xml` cannot be loaded or is not an FMI-2/FMI-3 descriptor."""
 
 
 class _TreeBuilder(ET.TreeBuilder):
@@ -199,8 +199,8 @@ class ModelVariable:
     This is the object given to
     [OperationAbstract.port_attrs][fmu_manipulation_toolbox.operations.OperationAbstract.port_attrs]
     for each variable. It gives dict-like access to the attributes of every
-    level (`[]`, `get()`, `in`): for FMI 2.0, the `<ScalarVariable>` attributes
-    and those of its type element (e.g. `<Real>`); for FMI 3.0, the attributes
+    level (`[]`, `get()`, `in`): for FMI-2, the `<ScalarVariable>` attributes
+    and those of its type element (e.g. `<Real>`); for FMI-3, the attributes
     of the variable element and the values of its `<Start>` elements (`String`
     and `Binary` variables), under the key `start`. It reads and writes the tree
     directly: `attrs_list` holds the `attrib` dictionaries of the underlying
@@ -235,7 +235,7 @@ class ModelVariable:
     def fmi_type(self, fmi_type: str):
         typed = self.typed_element
         if typed is None:
-            raise ModelDescriptionError(f"Variable '{self.element.get('name')}' has no type element")
+            raise ModelDescriptionError(f"Variable '{self.element.get('name')}' has no type element.")
         typed.tag = fmi_type
 
     @property
@@ -345,7 +345,7 @@ class ModelDescription:
 
     def __init__(self, root: ET.Element, namespaces=(), prolog=(), epilog=()):
         if root.tag != "fmiModelDescription":
-            raise ModelDescriptionError(f"Root element is <{root.tag}>, expected <fmiModelDescription>")
+            raise ModelDescriptionError(f"Root element is <{root.tag}>, expected <fmiModelDescription>.")
         self.root = root
         self.namespaces: list[tuple[str, str]] = list(namespaces)
         self.prolog: list[ET.Element] = list(prolog)
@@ -358,9 +358,9 @@ class ModelDescription:
         try:
             major = int(str(fmi_version).split(".", 1)[0])
         except ValueError:
-            raise ModelDescriptionError(f"Invalid fmiVersion '{fmi_version}'") from None
+            raise ModelDescriptionError(f"Invalid fmiVersion '{fmi_version}'.") from None
         if major not in (2, 3):
-            raise ModelDescriptionError(f"Unsupported fmiVersion '{fmi_version}': expected FMI 2.0 or 3.0")
+            raise ModelDescriptionError(f"Unsupported fmiVersion '{fmi_version}': expected FMI-2 or FMI-3.")
         return major
 
     # ------------------------------------------------------------------ I/O
@@ -370,7 +370,7 @@ class ModelDescription:
 
         Raises:
             ModelDescriptionError: If the document is not well-formed or is not
-                an FMI 2.0/3.0 model description.
+                an FMI-2/FMI-3 model description.
         """
         builder = _TreeBuilder()
         parser = ET.XMLParser(target=builder)
@@ -384,7 +384,7 @@ class ModelDescription:
             root = parser.close()
         except ET.ParseError as error:
             raise ModelDescriptionError(f"'{source if not isinstance(source, bytes) else '<bytes>'}' "
-                                        f"is not well-formed XML: {error}") from error
+                                        f"is not well-formed XML: {error}.") from error
         return cls(root, builder.namespaces, builder.prolog, builder.epilog)
 
     def save(self, destination: str | Path | IO[bytes]) -> None:
@@ -429,7 +429,7 @@ class ModelDescription:
     def model_variables(self) -> ET.Element:
         model_variables = self.root.find("ModelVariables")
         if model_variables is None:
-            raise ModelDescriptionError("<ModelVariables> is missing")
+            raise ModelDescriptionError("<ModelVariables> is missing.")
         return model_variables
 
     @property
@@ -484,15 +484,15 @@ class ModelDescription:
     def model_exchange_sizes(self, label: str = "") -> tuple[int, int]:
         """Number of continuous states (`nx`) and of event indicators (`nz`).
 
-        - FMI 2.0: `nx` is the number of `<Unknown>` entries of `<Derivatives>`
+        - FMI-2: `nx` is the number of `<Unknown>` entries of `<Derivatives>`
           (FMI-2 variables are scalar), `nz` the `numberOfEventIndicators`
           attribute of `<fmiModelDescription>`.
-        - FMI 3.0: `nx` and `nz` count the elements of the variables listed by
+        - FMI-3: `nx` and `nz` count the elements of the variables listed by
           `<ContinuousStateDerivative>` and `<EventIndicator>`: an array counts
           for its number of elements, its dimensions being given by
           `<Dimension start>` or by the start value of a structural parameter.
 
-        An FMI 3.0 entry whose size cannot be resolved counts for one element,
+        An FMI-3 entry whose size cannot be resolved counts for one element,
         with a warning.
 
         Args:
@@ -515,13 +515,13 @@ class ModelDescription:
 
     @staticmethod
     def _size_of(section: str, vr: str | None, ports: dict[str, "ModelVariable"], label: str) -> int:
-        """Number of elements of the FMI 3.0 variable `vr` (1 if it cannot be resolved)."""
+        """Number of elements of the FMI-3 variable `vr` (1 if it cannot be resolved)."""
         if vr is None:
-            logger.warning(f"'{label}': <{section}> without valueReference. Assuming 1 element.")
+            logger.warning(f"'{label}': <{section}> has no valueReference: 1 element assumed.")
             return 1
         port = ports.get(vr)
         if port is None:
-            logger.warning(f"'{label}': <{section}> refers to unknown variable vr={vr}. Assuming 1 element.")
+            logger.warning(f"'{label}': <{section}> refers to the unknown valueReference {vr}: 1 element assumed.")
             return 1
 
         size = 1
@@ -534,8 +534,8 @@ class ModelDescription:
             try:
                 size *= int(parameter.get("start", "") if parameter is not None else "")
             except (TypeError, ValueError):
-                logger.warning(f"'{label}': <{section}> vr={vr} has a dimension given by structuralParameter "
-                               f"vr={value} whose value cannot be resolved. Assuming 1 element.")
+                logger.warning(f"'{label}': <{section}> {vr}: the value of the structural parameter {value} that "
+                               f"gives its dimension cannot be resolved: 1 element assumed.")
                 return 1
         return size
 

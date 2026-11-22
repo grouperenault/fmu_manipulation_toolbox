@@ -1,46 +1,46 @@
-Container model loading...
-FMUContainer 'V2.1.dev0-78-g63f4a38'
-Solver configure....
-Reading 'container.txt'...
-Container use SEQUENTIAL mode.
-Container time_step = 1.000000e-01s
+Loading the container model.
+FMUContainer version 'V2.1a1-83-gd73e9fc'.
+Solver configuration.
+Reading 'container.txt'.
+Container uses the sequential mode.
+Step size of the container: 1.000000e-01s.
 3 FMUs to be loaded (3 CS, 0 ME).
-FMU#0: loading 'DemoCanBusSimulation.dylib' from directory '/var/folders/_m/1mxklkqx00dbvzzzrt8ldrx80000gn/T/tmp1z14ul4h/resources//00' (FMI-3, CS)
-FMU#1: loading 'DemoCanNodeTriggeredOutput.dylib' from directory '/var/folders/_m/1mxklkqx00dbvzzzrt8ldrx80000gn/T/tmp1z14ul4h/resources//01' (FMI-3, CS)
-FMU#2: loading 'DemoCanNodeTriggeredOutput.dylib' from directory '/var/folders/_m/1mxklkqx00dbvzzzrt8ldrx80000gn/T/tmp1z14ul4h/resources//02' (FMI-3, CS)
-reals64   : 1 local variables and 2 ports
-integers32: 2 local variables and 2 ports
-binaries  : 4 local variables and 4 ports
-clocks    : 4 local variables and 4 ports
-FMU# 0: binaries  : [in] 0 ports and 2 clocked
-FMU# 0: clocks    : [in] 2 ports
-FMU# 0: binaries  : [out] 0 ports and 2 clocked
-FMU# 1: binaries  : [in] 0 ports and 1 clocked
-FMU# 1: clocks    : [in] 1 ports
-FMU# 1: binaries  : [out] 0 ports and 1 clocked
-FMU# 1: clocks    : [out] 1 ports
-FMU# 2: binaries  : [in] 0 ports and 1 clocked
-FMU# 2: clocks    : [in] 1 ports
-FMU# 2: binaries  : [out] 0 ports and 1 clocked
-FMU# 2: clocks    : [out] 1 ports
-Container will tick for clocks from 1 FMUs
-Instanciate embedded FMUs...
-FMU#0: Instanciate 'bus.fmu' as 'bus+nodes.bus.fmu' for CoSimulation
+FMU #0: loading 'DemoCanBusSimulation.dylib' from the directory '/var/folders/_m/1mxklkqx00dbvzzzrt8ldrx80000gn/T/tmpre2suc6i/resources/00' (FMI-3, CS).
+FMU #1: loading 'DemoCanNodeTriggeredOutput.dylib' from the directory '/var/folders/_m/1mxklkqx00dbvzzzrt8ldrx80000gn/T/tmpre2suc6i/resources/01' (FMI-3, CS).
+FMU #2: loading 'DemoCanNodeTriggeredOutput.dylib' from the directory '/var/folders/_m/1mxklkqx00dbvzzzrt8ldrx80000gn/T/tmpre2suc6i/resources/02' (FMI-3, CS).
+reals64   : 1 local variable(s) and 2 port(s).
+integers32: 2 local variable(s) and 2 port(s).
+binaries  : 4 local variable(s) and 4 port(s).
+clocks    : 4 local variable(s) and 4 port(s).
+FMU #0  binaries   inputs : 0 port(s) and 2 clocked.
+FMU #0  clocks     inputs : 2 port(s).
+FMU #0  binaries   outputs: 0 port(s) and 2 clocked.
+FMU #1  binaries   inputs : 0 port(s) and 1 clocked.
+FMU #1  clocks     inputs : 1 port(s).
+FMU #1  binaries   outputs: 0 port(s) and 1 clocked.
+FMU #1  clocks     outputs: 1 port(s).
+FMU #2  binaries   inputs : 0 port(s) and 1 clocked.
+FMU #2  clocks     inputs : 1 port(s).
+FMU #2  binaries   outputs: 0 port(s) and 1 clocked.
+FMU #2  clocks     outputs: 1 port(s).
+Container ticks the clocks of 1 FMU(s).
+Instantiating the embedded FMUs.
+FMU #0: 'bus.fmu' instantiated as 'bus+nodes.bus.fmu' in CoSimulation.
 bus.fmu: Instance bus+nodes.bus.fmu instantiated.
-FMU#1: Instanciate 'node1.fmu' as 'bus+nodes.node1.fmu' for CoSimulation
+FMU #1: 'node1.fmu' instantiated as 'bus+nodes.node1.fmu' in CoSimulation.
 node1.fmu: Instance bus+nodes.node1.fmu instantiated.
-FMU#2: Instanciate 'node2.fmu' as 'bus+nodes.node2.fmu' for CoSimulation
+FMU #2: 'node2.fmu' instantiated as 'bus+nodes.node2.fmu' in CoSimulation.
 node2.fmu: Instance bus+nodes.node2.fmu instantiated.
-Reading 'datalog.txt'...
-Container enable DATALOG.
+Reading 'datalog.txt'.
+Container enables the datalog.
 Container is configured.
 Container configuration read.
-Setting start values...
+Setting the start values.
 Start values are set.
 bus.fmu: Entering initialization mode.
 node1.fmu: Entering initialization mode.
 node2.fmu: Entering initialization mode.
-Re-setting some start values...
+Setting some start values again.
 Start values are set.
 bus.fmu: Entering event mode.
 node1.fmu: Entering event mode.
@@ -4222,10 +4222,10 @@ node2.fmu: Entering step mode.
 bus.fmu: Terminating.
 node1.fmu: Terminating.
 node2.fmu: Terminating.
-Container instance 'bus+nodes' to be freed...
+Freeing the container instance 'bus+nodes'.
 bus.fmu: Instance bus+nodes.bus.fmu freed.
-Unload FMU bus.fmu
+Unloading FMU 'bus.fmu'.
 node1.fmu: Instance bus+nodes.node1.fmu freed.
-Unload FMU node1.fmu
+Unloading FMU 'node1.fmu'.
 node2.fmu: Instance bus+nodes.node2.fmu freed.
-Unload FMU node2.fmu
+Unloading FMU 'node2.fmu'.

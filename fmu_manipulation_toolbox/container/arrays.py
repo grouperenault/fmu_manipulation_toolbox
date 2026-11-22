@@ -14,7 +14,7 @@ logger = logging.getLogger("fmu_manipulation_toolbox")
 #
 # FMI-2 has no native array concept: vectors and matrices are conventionally
 # exposed as a set of scalar ports named `basename[i]` or `basename[i,j,...]`
-# (Modelica-style comma notation, conforming to how FMI-2.0 exporters
+# (Modelica-style comma notation, conforming to how FMI-2 exporters
 # typically flatten arrays). The `ArrayAggregate` class below detects such
 # families and represents them as virtual N-D aggregates so they can be
 # connected to FMI-3 array ports of matching shape.
@@ -69,7 +69,7 @@ class ArrayAggregate:
     @classmethod
     def parse_element_name(cls, name: str) -> tuple[str, tuple[int, ...]] | None:
         """Return `(basename, indices)` if `name` has the form `basename[i,j,...]`
-        (Modelica-style comma notation, conforming to FMI-2.0 array-element
+        (Modelica-style comma notation, conforming to FMI-2 array-element
         naming). Returns `None` if `name` is not a recognized array element
         name.
         """
