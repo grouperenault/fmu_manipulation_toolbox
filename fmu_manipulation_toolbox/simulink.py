@@ -27,9 +27,9 @@ NO_CONSTANT_TYPES = ("clock", "binary")
 #: Longest MATLAB identifier (`namelengthmax`).
 MATLAB_NAME_LENGTH = 63
 
-#: Prefix of the name of the script: `build_<model>.m` builds `<model>.slx` (decision 32). The function and the model
-#: cannot have the same name: the model would shadow the function.
-SCRIPT_PREFIX = "build_"
+#: Suffix of the name of the model: `toto.m` builds `toto_model.slx` (decision 33). The function and the model cannot
+#: have the same name: the model would shadow the function.
+MODEL_SUFFIX = "_model"
 
 
 # ----------------------------------------------------------------------------------------------- intermediate model
@@ -237,28 +237,27 @@ class SimulinkExporter:
                              start_time=root.start_time, stop_time=root.stop_time, fmu_files=self.fmu_files)
 
     def export(self, filename: str | Path) -> Path:
-        """Write the MATLAB script that builds and saves the Simulink model (decisions 28, 32).
+        """Write the MATLAB script that builds and saves the Simulink model (decisions 28, 33).
 
         Args:
-            filename (str | Path): Names the model: `model.m` (or `model`, or `build_model.m`) writes the script
-                `build_model.m`, whose function `build_model()` builds and saves `model.slx`.
+            filename (str | Path): The script, e.g. `toto.m`: its function `toto()` builds and saves the model
+                `toto_model.slx` (decision 33). `.m` is appended when missing.
 
         Returns:
             Path: The script.
 
         Raises:
-            AssemblyError: If the name of the model is not a valid MATLAB identifier, if an FMU cannot be designated
+            AssemblyError: If the name of the script is not a valid MATLAB identifier, if an FMU cannot be designated
                 relatively to the script (another drive), or if the assembly cannot be exported (see `analyse`).
         """
         filename = Path(filename)
-        if filename.suffix.lower() == ".m":
-            filename = filename.with_suffix("")
-        name = filename.name[len(SCRIPT_PREFIX):] if filename.name.startswith(SCRIPT_PREFIX) else filename.name
-        filename = filename.with_name(f"{SCRIPT_PREFIX}{name}.m")
-        if not _identifier(name) or len(filename.stem) > MATLAB_NAME_LENGTH:
-            raise AssemblyError(f"'{name}': the name of a Simulink model must be a valid MATLAB identifier "
-                                f"(a letter, then letters, digits or '_', at most {MATLAB_NAME_LENGTH} characters).")
-        model = self.analyse(name)
+        if filename.suffix.lower() != ".m":
+            filename = filename.with_name(filename.name + ".m")
+        if not _identifier(filename.stem) or len(filename.stem + MODEL_SUFFIX) > MATLAB_NAME_LENGTH:
+            raise AssemblyError(f"'{filename.name}': the name of a MATLAB script must be a valid MATLAB identifier "
+                                f"(a letter, then letters, digits or '_', at most "
+                                f"{MATLAB_NAME_LENGTH - len(MODEL_SUFFIX)} characters).")
+        model = self.analyse(filename.stem + MODEL_SUFFIX)
         directory = filename.resolve().parent
         folders = []
         for path in model.fmu_files.values():
@@ -270,7 +269,8 @@ class SimulinkExporter:
             if folder not in folders:
                 folders.append(folder)
         assert self.assembly.root is not None
-        filename.write_text(MatlabWriter(model, folders, self.assembly.root.name).render(), encoding="utf-8")
+        writer = MatlabWriter(model, folders, self.assembly.root.name, function_name=filename.stem)
+        filename.write_text(writer.render(), encoding="utf-8")
         logger.info(f"Simulink model '{model.name}': MATLAB script '{filename}' written.")
         return filename
 
@@ -658,13 +658,15 @@ class MatlabWriter:
         fmu_folders (list[str]): Folders of the FMUs, relative to the folder of the script, added to the MATLAB path
             (decision 28).
         description (str): Name of the assembly, for the comment of the function.
+        function_name (str): Name of the function, the stem of the script; it differs from the name of the model.
     """
 
     #: Size of the blocks, and space between them, in pixels.
     WIDTH, ROW, GAP, COLUMN = 120, 20, 40, 220
 
-    def __init__(self, model: SimulinkModel, fmu_folders: list[str], description: str = ""):
+    def __init__(self, model: SimulinkModel, fmu_folders: list[str], description: str = "", *, function_name: str):
         self.model = model
+        self.function_name = function_name
         self.fmu_folders = fmu_folders
         self.description = description
         self.lines: list[str] = []
@@ -672,8 +674,8 @@ class MatlabWriter:
     def render(self) -> str:
         model = self.model
         self.lines = [
-            f"function model = {SCRIPT_PREFIX}{model.name}()",
-            f"%{(SCRIPT_PREFIX + model.name).upper()} Build and save the Simulink model of the assembly "
+            f"function model = {self.function_name}()",
+            f"%{self.function_name.upper()} Build and save the Simulink model of the assembly "
             f"'{self.description or model.name}'.",
             "%   Generated by the FMU Manipulation Toolbox. Run it in MATLAB R2024a or newer: it builds the model with",
             f"%   FMU blocks and saves it as {model.name}.slx next to this script. The FMUs stay in their folders,",

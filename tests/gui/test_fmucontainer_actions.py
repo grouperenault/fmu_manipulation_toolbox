@@ -248,8 +248,8 @@ def test_save_as_simulink_keeps_the_unsaved_changes(window, monkeypatch, bouncin
 
     window.save_as_simulink(str(tmp_path / "bouncing_model.m"))
 
-    script = tmp_path / "build_bouncing_model.m"
-    assert script.read_text(encoding="utf-8").startswith("function model = build_bouncing_model()")
+    script = tmp_path / "bouncing_model.m"
+    assert script.read_text(encoding="utf-8").startswith("function model = bouncing_model()")
     assert window._dirty is True
 
 

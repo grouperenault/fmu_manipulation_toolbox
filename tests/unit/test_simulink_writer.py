@@ -24,7 +24,9 @@ def ball(data_dir):
 
 
 def _script(assembly: Assembly, folders=(".",)) -> str:
-    return MatlabWriter(SimulinkExporter(assembly).analyse(), list(folders), assembly.root.name).render()
+    """The script `bouncing.m` of the model `bouncing_model` (decision 33)."""
+    model = SimulinkExporter(assembly).analyse("bouncing_model")
+    return MatlabWriter(model, list(folders), assembly.root.name, function_name="bouncing").render()
 
 
 def test_escaping():
@@ -58,7 +60,8 @@ def test_model_settings_and_path(ball):
     assembly = Assembly("bouncing.csv", fmu_directory=ball)
     assembly.root.start_time, assembly.root.stop_time = 0.0, 3.0
     script = _script(assembly, ["fmus", "../shared/fmus"])
-    assert script.startswith("function model = build_bouncing()\n")     # decision 32
+    assert script.startswith("function model = bouncing()\n")     # decision 33
+    assert "model = 'bouncing_model';" in script
     assert "addpath(fullfile(here, 'fmus'));" in script
     assert "addpath(fullfile(here, '..', 'shared', 'fmus'));" in script
     assert "'SolverType', 'Fixed-step', 'FixedStep', '0.001', 'EnableMultiTasking', 'off', 'BlockReduction', 'off', " \

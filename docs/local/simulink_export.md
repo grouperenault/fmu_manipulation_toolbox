@@ -1,6 +1,6 @@
 # Export of an assembly to Simulink
 
-**Status**: decisions 1 to 32 taken (22 November 2026), steps 1 to 5 done — **Branch**: `feature/simulink-export`,
+**Status**: decisions 1 to 33 taken (22 November 2026), steps 1 to 5 done — **Branch**: `feature/simulink-export`,
 rebased on `integration` (`0f8db8e`) — **Roadmap**: "Export to Simulink"
 
 ## Context
@@ -147,11 +147,16 @@ points of 2026-10-17, with the results of the importer comparison study
     exposed as an output (`auto_parameter`, `auto_local`), has no port on the FMU block: it is not exposed, with a
     warning. `-simulink` with several `-container` is a usage error (one script).
 
-32. **Name of the script** (replaces decision 30, after the first run on MATLAB): the model and the function cannot
+32. ~~**Name of the script** (replaces decision 30, after the first run on MATLAB): the model and the function cannot
     have the same name ("the model name '…' is shadowing a name in the MATLAB workspace"). The name given (CLI
     `-simulink model.m`, file chosen in **Save**) is the one of the model; the script is always `build_<model>.m`,
     whose function `build_<model>()` builds and saves `<model>.slx` (`build_` is not repeated when the name already
-    starts with it). The name of the model must be a valid MATLAB identifier.
+    starts with it). The name of the model must be a valid MATLAB identifier.~~ Replaced by decision 33.
+33. **Name of the script and of the model** (replaces decision 32): the file created is the one chosen (CLI
+    `-simulink toto.m`, `toto.m` in **Save**): its function `toto()` builds and saves the model `toto_model.slx`.
+    The model and the function cannot have the same name ("the model name '…' is shadowing a name in the MATLAB
+    workspace"). The stem of the script must be a valid MATLAB identifier, of at most 57 characters (63 with
+    `_model`).
 
 ### Closed open points (2026-10-17)
 

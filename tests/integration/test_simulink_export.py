@@ -11,27 +11,20 @@ pytestmark = [pytest.mark.integration]
 
 @pytest.mark.area("containers/bouncing_ball")
 def test_script_is_written_next_to_the_fmus(area_dir):
-    script = Assembly("bouncing.csv").make_simulink("ball_model.m")
+    script = Assembly("bouncing.csv").make_simulink("ball.m")
     text = script.read_text(encoding="utf-8")
-    assert script.name == "build_ball_model.m"                      # decision 32: the name is the one of the model
-    assert text.startswith("function model = build_ball_model()\n")
-    assert "model = 'ball_model';" in text
+    assert script.name == "ball.m"                                  # decision 33: the file chosen
+    assert text.startswith("function model = ball()\n")
+    assert "model = 'ball_model';" in text                          # the model does not shadow the function
     assert "addpath(here);" in text                                 # the FMUs are next to the script
 
 
 @pytest.mark.area("containers/bouncing_ball")
 def test_folders_of_the_fmus_are_relative_to_the_script(area_dir):
     (area_dir / "out").mkdir()
-    script = Assembly("bouncing.csv").make_simulink(area_dir / "out" / "model")       # without `.m`
-    assert script.name == "build_model.m"
+    script = Assembly("bouncing.csv").make_simulink(area_dir / "out" / "model")       # `.m` appended
+    assert script.name == "model.m"
     assert "addpath(fullfile(here, '..'));" in script.read_text(encoding="utf-8")
-
-
-@pytest.mark.area("containers/bouncing_ball")
-def test_build_prefix_is_not_repeated(area_dir):
-    script = Assembly("bouncing.csv").make_simulink("build_ball.m")
-    assert script.name == "build_ball.m"
-    assert "model = 'ball';" in script.read_text(encoding="utf-8")
 
 
 @pytest.mark.area("containers/bouncing_ball")

@@ -43,8 +43,8 @@ def test_fmucontainer_simulink(area_dir, caplog):
     sys.argv = ["fmucontainer", "-container", "bouncing_unlinked.csv", "-simulink", "auto_model.m"]
     fmucontainer()
     assert Path("bouncing_unlinked.fmu").exists()
-    script = Path("build_auto_model.m").read_text(encoding="utf-8")
-    assert script.startswith("function model = build_auto_model()")
+    script = Path("auto_model.m").read_text(encoding="utf-8")
+    assert script.startswith("function model = auto_model()")
     assert "add_line(model, 'bb_velocity/1', 'bb_position/1', 'autorouting', 'on');" in script
     assert not any("implicit links" in message for message in caplog.messages)
 
