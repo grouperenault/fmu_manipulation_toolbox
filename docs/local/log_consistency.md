@@ -1,6 +1,6 @@
 # Plan: consistent log messages
 
-**Created**: 13 October 2026 — **Status**: steps 1 and 2 done; decisions D1 to D6 taken (22 November 2026); D7 to D9 to be decided at
+**Created**: 13 October 2026 — **Status**: steps 1 to 3 done; decisions D1 to D6 taken (22 November 2026); D7 to D9 to be decided at
 the start of their step — **Branch**: `feature/log-consistency`, from `integration` (`e8b1128`) — **Roadmap**: "log
 consistency" — **Origin**: review of the logs of FMU Tool during `compile_sources.md` (decision D16)
 
@@ -127,6 +127,13 @@ Taken on 22 November 2026, at the start of step 2:
 - **D13 — Save FMU** of FMU Tool: the errors of `fmu.repack()` (`FMUError`, `OSError`) are logged as `CRITICAL`, like
   the CLI (`OUTPUT_ERROR`); the success message only when the file is written.
 
+Taken on 22 November 2026, at the start of step 3:
+
+- **D14 — Report of Summary**: it keeps its layout (lines starting with `| `), an exception documented in the
+  convention.
+- **D15 — Checker loaded from a file** (#11): `Checker 'X' loaded from 'file.py'.` (INFO: the user gave the file);
+  the checkers of the extensions (entry points) stay in DEBUG: `Addon checker 'X' loaded.`
+
 ### To be decided at the start of the step concerned
 
 | # | Question | Step |
@@ -164,6 +171,10 @@ Commit message: `fmutool and FMU Tool: log messages aligned with the conventions
   remoting test if needed.
 - The texts of `FMUError` (`operations.py:72-118, 275`) have no final period: `'x.fmu' does not exist`. They are
   logged as they are by the CLI and the GUIs.
+- Done: also `model_description.py` (`ModelDescriptionError`, whose text is repeated by `FMUError`) and
+  `compiler.py` (paths between quotes, `FMI-2`). The remoting checks its client and server binaries before changing
+  the FMU (D6). New tests: `tests/unit/test_remoting_errors.py` (runs on every platform), exact texts in
+  `test_operations_errors.py`, `test_model_description.py`, `test_checker.py`, `test_checker_loading.py`.
 
 Commit message: `Operations, remoting and checkers: log messages aligned with the conventions`
 

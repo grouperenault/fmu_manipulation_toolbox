@@ -48,7 +48,7 @@ def test_fmuport_is_removed():
 def test_fmu_missing_file_raises_fmuerror(tmp_path):
     with pytest.raises(FMUError) as exc:
         FMU(str(tmp_path / "does-not-exist.fmu"))
-    assert "does not exist" in str(exc.value)
+    assert str(exc.value) == f"'{tmp_path / 'does-not-exist.fmu'}' does not exist."
 
 
 def test_fmu_without_descriptor_raises_fmuerror(tmp_path):
@@ -59,7 +59,7 @@ def test_fmu_without_descriptor_raises_fmuerror(tmp_path):
 
     with pytest.raises(FMUError) as exc:
         FMU(str(broken))
-    assert "is not valid" in str(exc.value)
+    assert str(exc.value) == f"'{broken}' is not valid: modelDescription.xml not found."
 
 
 # --------------------------------------------------------------------------- #
@@ -68,7 +68,7 @@ def test_fmu_without_descriptor_raises_fmuerror(tmp_path):
 def test_rename_from_csv_missing_file_raises(tmp_path):
     with pytest.raises(OperationError) as exc:
         OperationRenameFromCSV(str(tmp_path / "absent.csv"))
-    assert "not found" in str(exc.value)
+    assert str(exc.value) == f"File '{tmp_path / 'absent.csv'}' is not found."
 
 
 def test_rename_from_csv_single_column_raises(tmp_path):

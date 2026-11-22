@@ -107,9 +107,9 @@ class OperationGenericCheck(OperationAbstract):
         the FMU is compliant with the detected FMI version.
         """
         if self.compliant_with_version:
-            logger.info(f"This FMU seems to be compliant with FMI-{self.compliant_with_version}.")
+            logger.info(f"This FMU seems to be compliant with FMI-{self.compliant_with_version[0]}.")
         else:
-            logger.error("This FMU does not validate with FMI standard.")
+            logger.error("This FMU does not validate against the XSD schema of the FMI standard.")
 
 
 class OperationSemanticCheck(OperationAbstract):
@@ -428,7 +428,7 @@ class OperationLsBusCheck(OperationAbstract):
             return
 
         if md.fmi_version != 3:
-            self.error(f"FMI-LS-BUS is a layered standard of FMI 3.0, not of FMI {md.fmi_version}.")
+            self.error(f"FMI-LS-BUS is a layered standard of FMI-3, not of FMI-{md.fmi_version}.")
         elif has_manifest:
             self.check_manifest(directory / self.MANIFEST)
         else:
@@ -450,7 +450,7 @@ class OperationLsBusCheck(OperationAbstract):
         try:
             root = ET.parse(filename).getroot()
         except ET.ParseError as error:
-            self.error(f"Cannot parse the manifest of FMI-LS-BUS: {error}")
+            self.error(f"Cannot parse the manifest of FMI-LS-BUS: {error}.")
             return
 
         namespace = f"{{{LayeredStandard.MANIFEST_NAMESPACE}}}"
@@ -598,7 +598,7 @@ class OperationLsXcpCheck(OperationAbstract):
             root = ET.parse(manifest).getroot()
         except ET.ParseError as error:
             root = None
-            self.error(f"Cannot parse the manifest of FMI-LS-XCP: {error}")
+            self.error(f"Cannot parse the manifest of FMI-LS-XCP: {error}.")
 
         if root is not None:
             for problem in xmlschema.XMLSchema(str(self.XSD)).iter_errors(str(manifest)):
@@ -685,7 +685,7 @@ class OperationLsXcpCheck(OperationAbstract):
         if variabilities is None or port.variability not in variabilities or \
                 (port.causality == "structuralParameter" and fmi_version != 3):
             self.error(f"{label}: variable '{name}' of role {role} is a {port.variability} {port.causality}: "
-                       f"FMI-LS-XCP needs a fixed structuralParameter (FMI 3.0), a fixed parameter, a constant "
+                       f"FMI-LS-XCP needs a fixed structuralParameter (FMI-3), a fixed parameter, a constant "
                        f"output or a fixed or tunable calculatedParameter.")
 
 
@@ -787,7 +787,7 @@ class OperationLsRefCheck(OperationAbstract):
         try:
             ET.parse(manifest)
         except ET.ParseError as error:
-            self.error(f"Cannot parse the manifest of FMI-LS-REF: {error}")
+            self.error(f"Cannot parse the manifest of FMI-LS-REF: {error}.")
         else:
             for problem in xmlschema.XMLSchema(str(self.MANIFEST_XSD)).iter_errors(str(manifest)):
                 message = (f"Manifest of FMI-LS-REF: {xsd_reason(problem)}"
@@ -1050,11 +1050,11 @@ def get_checkers() -> list[type[OperationAbstract]]:
             entry = checker.load()
         except ImportError as error:
             # A third-party checker must not stop the tool (e.g. one still importing `FMUPort`, removed in 2.0).
-            logger.error(f"Cannot load the addon checker '{checker.name}': {error}{_import_hint(error)}")
+            logger.error(f"Cannot load the addon checker '{checker.name}': {error}{_import_hint(error)}.")
             continue
         checker_class = entry()
         if issubclass(checker_class, OperationAbstract):
-            logger.debug(f"Addon checker: {checker.name}")
+            logger.debug(f"Addon checker '{checker.name}' loaded.")
             checkers.append(checker_class)
 
     return checkers
@@ -1089,13 +1089,13 @@ def add_from_file(checker_filename: str):
         try:
             spec.loader.exec_module(checker_module)
         except (ImportError, SyntaxError) as error:
-            logger.error(f"Cannot load '{checker_filename}': {error}{_import_hint(error)}")
+            logger.error(f"Cannot load '{checker_filename}': {error}{_import_hint(error)}.")
             return
 
         for checker_name, checker_class in inspect.getmembers(checker_module, inspect.isclass):
             if OperationAbstract in checker_class.__bases__ and issubclass(checker_class, OperationAbstract):
                 _checkers_list.append(checker_class)
-                logger.info(f"Adding checker: {checker_filename}|{checker_name}")
+                logger.info(f"Checker '{checker_name}' loaded from '{checker_filename}'.")
 
     except AttributeError:
-        logger.error(f"'{checker_filename}' should implement class 'OperationCheck'")
+        logger.error(f"'{checker_filename}' should implement class 'OperationCheck'.")

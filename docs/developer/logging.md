@@ -24,7 +24,9 @@ A message must therefore read well on its own, without a prefix of its own, what
 - **No level in the text**: no `INFO`, `ERROR:`, `FATAL ERROR:`, nor tags such as `READING` or `WRITING`. The
   handlers add the level.
 - **No layout in the text**: no alignment by spaces, no ad-hoc indentation or bullets. A list of items is one
-  message per item, or one sentence.
+  message per item, or one sentence. The only exception is a report printed as a table of text, such as the one of
+  **Summary** (`OperationSummary`, lines starting with `| `): it keeps its layout. The GUI of FMU Tool recognises its
+  line `| temporary directory = …` to show the directory as a link.
 
 | Not | But |
 |---|---|

@@ -69,13 +69,13 @@ class FMU:
             with zipfile.ZipFile(self.fmu_filename) as zin:
                 zin.extractall(self.tmp_directory)
         except FileNotFoundError:
-            raise FMUError(f"'{self.fmu_filename}' does not exist") from None
+            raise FMUError(f"'{self.fmu_filename}' does not exist.") from None
         except (IsADirectoryError, PermissionError) as error:
-            raise FMUError(f"'{self.fmu_filename}' cannot be read: {error.strerror}") from None
+            raise FMUError(f"'{self.fmu_filename}' cannot be read: {error.strerror}.") from None
         except zipfile.BadZipFile:
-            raise FMUError(f"'{self.fmu_filename}' is not valid: not a ZIP archive") from None
+            raise FMUError(f"'{self.fmu_filename}' is not valid: not a ZIP archive.") from None
         if not os.path.isfile(self.descriptor_filename):
-            raise FMUError(f"'{self.fmu_filename}' is not valid: modelDescription.xml not found")
+            raise FMUError(f"'{self.fmu_filename}' is not valid: modelDescription.xml not found.")
 
     @property
     def model_description(self) -> ModelDescription:
@@ -115,7 +115,7 @@ class FMU:
 
     def _check_open(self):
         if self.closed:
-            raise FMUError(f"'{self.fmu_filename}' is closed")
+            raise FMUError(f"'{self.fmu_filename}' is closed.")
 
     def __enter__(self):
         return self
@@ -446,7 +446,7 @@ class Manipulation:
                         skipped.append(unknown)
                 self.remove_children(section, skipped)
                 if not any(child.tag == "Unknown" for child in section):
-                    logger.debug(f"Remove tag <{section.tag}> from modelDescription.xml")
+                    logger.debug(f"Remove tag <{section.tag}> from modelDescription.xml.")
                     structure.remove(section)
         else:
             skipped = []
@@ -469,7 +469,7 @@ class Manipulation:
         index = int(attrs['index'])
         new_index = self.port_translation[index-1]
         if new_index is None:
-            logger.warning(f"Removed port '{self.port_names_list[index-1]}' is involved in dependencies tree.")
+            logger.warning(f"Removed port '{self.port_names_list[index-1]}' is involved in the dependencies tree.")
             raise ManipulationSkipTag
 
         attrs['index'] = str(new_index)
@@ -486,7 +486,7 @@ class Manipulation:
         try:
             vr = attrs['valueReference']
             if vr in self.port_removed_vr:
-                logger.warning(f"Removed port vr={vr} is involved in dependencies tree.")
+                logger.warning(f"Removed port with valueReference {vr} is involved in the dependencies tree.")
                 raise ManipulationSkipTag
         except KeyError:
             return
@@ -780,9 +780,9 @@ class OperationRenameFromCSV(OperationRename):
                 for row in reader:
                     translations[row[0]] = row[1]
         except FileNotFoundError:
-            raise OperationError(f"file '{csv_filename}' is not found") from None
+            raise OperationError(f"File '{csv_filename}' is not found.") from None
         except IndexError:
-            raise OperationError(f"file '{csv_filename}' should contain two columns") from None
+            raise OperationError(f"File '{csv_filename}' should contain two columns.") from None
         super().__init__(translations)
 
 

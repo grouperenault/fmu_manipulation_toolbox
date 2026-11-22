@@ -49,7 +49,7 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
 
     def fmi_attrs(self, attrs):
         if not attrs["fmiVersion"] == "2.0":
-            raise OperationError("Adding remoting is only available for FMI-2.0")
+            raise OperationError("Adding remoting is only available for FMI-2.")
 
     def cosimulation_attrs(self, attrs):
         fmu_bin = {
@@ -58,28 +58,24 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
         }
 
         if not fmu_bin[self.bitness_from].is_dir():
-            raise OperationError(f"{self.bitness_from} interface does not exist")
+            raise OperationError(f"Interface '{self.bitness_from}' does not exist.")
+
+        # The binaries of the remoting are checked first: a missing one leaves the FMU unchanged.
+        client = Path(__file__).parent / "resources" / self.bitness_to / "client_sm.dll"
+        server = Path(__file__).parent / "resources" / self.bitness_from / "server_sm.exe"
+        for label, binary in (("client", client), ("server", server)):
+            if not binary.is_file():
+                raise OperationError(f"Cannot add the remoting {label}: '{binary}' is missing.")
 
         if fmu_bin[self.bitness_to].is_dir():
-            logger.info(f"{self.bitness_to} already exists. Add front-end.")
+            logger.info(f"Interface '{self.bitness_to}' already exists: a front-end is added to it.")
             shutil.move(fmu_bin[self.bitness_to] / Path(attrs['modelIdentifier']).with_suffix(".dll"),
                         fmu_bin[self.bitness_to] / Path(attrs['modelIdentifier']).with_suffix("-remoted.dll"))
         else:
             fmu_bin[self.bitness_to].mkdir()
 
-        to_path = Path(__file__).parent / "resources" / self.bitness_to
-        try:
-            shutil.copyfile(to_path / "client_sm.dll",
-                            fmu_bin[self.bitness_to] / Path(attrs['modelIdentifier']).with_suffix(".dll"))
-        except FileNotFoundError as e:
-            logger.critical(f"Cannot add remoting client: {e}")
-
-        from_path = Path(__file__).parent / "resources" / self.bitness_from
-        try:
-            shutil.copyfile(from_path / "server_sm.exe",
-                            fmu_bin[self.bitness_from] / "server_sm.exe")
-        except FileNotFoundError as e:
-            logger.critical(f"Cannot add remoting server: {e}")
+        shutil.copyfile(client, fmu_bin[self.bitness_to] / Path(attrs['modelIdentifier']).with_suffix(".dll"))
+        shutil.copyfile(server, fmu_bin[self.bitness_from] / "server_sm.exe")
 
         shutil.copyfile(Path(__file__).parent / "resources" / "license.txt",
                         fmu_bin[self.bitness_to] / "license.txt")
@@ -103,8 +99,8 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
         if not target_dir.is_dir():
             target_dir.mkdir()
 
-        logger.info(f"Remoting nb input port: {self.nb_input}")
-        logger.info(f"Remoting nb output port: {self.nb_output}")
+        logger.info(f"Remoting: {self.nb_input} input port(s).")
+        logger.info(f"Remoting: {self.nb_output} output port(s).")
         with open(target_dir/ "remoting_table.txt", "w") as file:
             for fmi_type in ('Real', 'Integer', 'Boolean'):
                 print(len(self.vr[fmi_type]), file=file)

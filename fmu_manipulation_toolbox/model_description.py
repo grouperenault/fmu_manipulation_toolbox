@@ -235,7 +235,7 @@ class ModelVariable:
     def fmi_type(self, fmi_type: str):
         typed = self.typed_element
         if typed is None:
-            raise ModelDescriptionError(f"Variable '{self.element.get('name')}' has no type element")
+            raise ModelDescriptionError(f"Variable '{self.element.get('name')}' has no type element.")
         typed.tag = fmi_type
 
     @property
@@ -345,7 +345,7 @@ class ModelDescription:
 
     def __init__(self, root: ET.Element, namespaces=(), prolog=(), epilog=()):
         if root.tag != "fmiModelDescription":
-            raise ModelDescriptionError(f"Root element is <{root.tag}>, expected <fmiModelDescription>")
+            raise ModelDescriptionError(f"Root element is <{root.tag}>, expected <fmiModelDescription>.")
         self.root = root
         self.namespaces: list[tuple[str, str]] = list(namespaces)
         self.prolog: list[ET.Element] = list(prolog)
@@ -358,9 +358,9 @@ class ModelDescription:
         try:
             major = int(str(fmi_version).split(".", 1)[0])
         except ValueError:
-            raise ModelDescriptionError(f"Invalid fmiVersion '{fmi_version}'") from None
+            raise ModelDescriptionError(f"Invalid fmiVersion '{fmi_version}'.") from None
         if major not in (2, 3):
-            raise ModelDescriptionError(f"Unsupported fmiVersion '{fmi_version}': expected FMI 2.0 or 3.0")
+            raise ModelDescriptionError(f"Unsupported fmiVersion '{fmi_version}': expected FMI-2 or FMI-3.")
         return major
 
     # ------------------------------------------------------------------ I/O
@@ -384,7 +384,7 @@ class ModelDescription:
             root = parser.close()
         except ET.ParseError as error:
             raise ModelDescriptionError(f"'{source if not isinstance(source, bytes) else '<bytes>'}' "
-                                        f"is not well-formed XML: {error}") from error
+                                        f"is not well-formed XML: {error}.") from error
         return cls(root, builder.namespaces, builder.prolog, builder.epilog)
 
     def save(self, destination: str | Path | IO[bytes]) -> None:
@@ -429,7 +429,7 @@ class ModelDescription:
     def model_variables(self) -> ET.Element:
         model_variables = self.root.find("ModelVariables")
         if model_variables is None:
-            raise ModelDescriptionError("<ModelVariables> is missing")
+            raise ModelDescriptionError("<ModelVariables> is missing.")
         return model_variables
 
     @property

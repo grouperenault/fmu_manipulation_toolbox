@@ -253,7 +253,7 @@ class SourceCompiler:
             try:
                 return names[(system, architecture)]
             except KeyError:
-                raise OperationError(f"FMI 2.0 has no platform name for {system} on '{platform.machine()}'.") \
+                raise OperationError(f"FMI-2 has no platform name for {system} on '{platform.machine()}'.") \
                     from None
 
         systems = {"Windows": "windows", "Linux": "linux", "Darwin": "darwin"}
@@ -318,11 +318,11 @@ class SourceCompiler:
     def _fmi3_configurations(self) -> list[BuildConfiguration]:
         filename = self.sources_directory / "buildDescription.xml"
         if not filename.is_file():
-            raise OperationError("sources/buildDescription.xml is missing: the sources to compile are unknown.")
+            raise OperationError("'sources/buildDescription.xml' is missing: the sources to compile are unknown.")
         try:
             root = ET.parse(filename).getroot()
         except ET.ParseError as error:
-            raise OperationError(f"sources/buildDescription.xml cannot be read: {error}") from None
+            raise OperationError(f"'sources/buildDescription.xml' cannot be read: {error}.") from None
 
         host_platform = self.host_platform(self.fmi_version)
         configurations: dict[str, BuildConfiguration] = {}
@@ -337,7 +337,7 @@ class SourceCompiler:
             configurations[model_identifier] = self._fmi3_configuration(model_identifier, element)
 
         if not configurations:
-            raise OperationError(f"sources/buildDescription.xml has no build configuration for '{host_platform}'.")
+            raise OperationError(f"'sources/buildDescription.xml' has no build configuration for '{host_platform}'.")
         return list(configurations.values())
 
     def _fmi3_configuration(self, model_identifier: str, element: ET.Element) -> BuildConfiguration:
