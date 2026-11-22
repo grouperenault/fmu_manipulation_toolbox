@@ -18,8 +18,16 @@ set_param(model, 'PreLoadFcn', 'here = fileparts(get_param(bdroot, ''FileName'')
 % System 'bouncing'
 add_block('simulink_extras/FMU Import/FMU', [model '/bb_position'], 'Position', [380 40 500 100]);
 set_param([model '/bb_position'], 'FMUName', 'bb_position.fmu', 'FMUInputMapping', 'Flat', 'FMUOutputMapping', 'Flat', 'FMUSampleTime', '0.001');
+ports = get_param([model '/bb_position'], 'PortHandles');
+for k = 1:numel(ports.Inport)
+    set_param(ports.Inport(k), 'CoSimSignalCompensationMode', 'Auto_Off');
+end
 add_block('simulink_extras/FMU Import/FMU', [model '/bb_velocity'], 'Position', [380 140 500 180]);
 set_param([model '/bb_velocity'], 'FMUName', 'bb_velocity.fmu', 'FMUInputMapping', 'Flat', 'FMUOutputMapping', 'Flat', 'FMUSampleTime', '0.001');
+ports = get_param([model '/bb_velocity'], 'PortHandles');
+for k = 1:numel(ports.Inport)
+    set_param(ports.Inport(k), 'CoSimSignalCompensationMode', 'Auto_Off');
+end
 add_block('built-in/Outport', [model '/position'], 'Position', [720 40 840 80]);
 set_param([model '/position'], 'Port', '1');
 add_block('built-in/Outport', [model '/velocity'], 'Position', [720 120 840 160]);

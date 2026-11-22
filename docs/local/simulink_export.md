@@ -1,6 +1,6 @@
 # Export of an assembly to Simulink
 
-**Status**: decisions 1 to 36 taken (22 November 2026), steps 1 to 5 done — **Branch**: `feature/simulink-export`,
+**Status**: decisions 1 to 37 taken (22 November 2026), steps 1 to 5 done — **Branch**: `feature/simulink-export`,
 rebased on `integration` (`0f8db8e`) — **Roadmap**: "Export to Simulink"
 
 ## Context
@@ -171,6 +171,11 @@ points of 2026-10-17, with the results of the importer comparison study
     `+…`), typically the FMUs extracted from an SSP file (`<ssp>.dir/resources`), are copied into `<script>_fmus/`
     next to the script, designated relatively; the other FMUs stay in place. A script written in such a folder is an
     error.
+
+37. **No numerical compensation** (from the user): the numerical compensation of the co-simulation signals is
+    disabled on each input port of the Co-Simulation FMU blocks (`CoSimSignalCompensationMode` = `Auto_Off`, set on
+    the handles of `get_param(block, 'PortHandles').Inport`; documented by MathWorks, there is no setting for a whole
+    block or model). The FMU blocks get the inputs of the container, not extrapolated values.
 
 ### Closed open points (2026-10-17)
 

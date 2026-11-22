@@ -101,3 +101,15 @@ def test_subsystem_ports_exist_before_the_lines_of_the_parent(ball):
     script = _script(assembly)
     assert script.index("[[model '/sub'] '/bounce']") < script.index("'bb_position/1', 'sub/1'")
     assert "set_param([model '/bb_position'], 'velocity', '1.5');  % UNVERIFIED" in script
+
+
+def test_numerical_compensation_is_disabled(ball):
+    """Each input port of a Co-Simulation FMU block: CoSimSignalCompensationMode = Auto_Off (decision 37)."""
+    script = _script(Assembly("bouncing.csv", fmu_directory=ball))
+    assert script.count("set_param(ports.Inport(k), 'CoSimSignalCompensationMode', 'Auto_Off');") == 2
+    assert "ports = get_param([model '/bb_position'], 'PortHandles');" in script
+
+
+def test_no_compensation_setting_on_model_exchange_blocks(data_dir):
+    script = _script(Assembly("bouncing_ball_me.json", fmu_directory=data_dir / "me"))
+    assert "CoSimSignalCompensationMode" not in script

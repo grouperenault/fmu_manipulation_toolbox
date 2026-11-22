@@ -677,6 +677,9 @@ FMU_LIBRARY_SYSTEM = "simulink_extras"
 RESET_PORT_BLOCK = "built-in/ResetPort"             # UNVERIFIED
 RESET_TRIGGER = ("ResetTriggerType", "level")       # UNVERIFIED (decision 23)
 PRELOAD_CALLBACK = "PreLoadFcn"                     # UNVERIFIED in this use (decision 20)
+#: Numerical compensation of the co-simulation signals, set on each input port of a block (decision 37); documented:
+#: https://www.mathworks.com/help/simulink/ug/numerical-compensation.html
+COMPENSATION = ("CoSimSignalCompensationMode", "Auto_Off")
 
 #: Simulink data type of the `Constant` blocks, by container type.
 SIMULINK_TYPES = {
@@ -918,6 +921,14 @@ class MatlabWriter:
         path = self._add_block(FMU_LIBRARY, system, name, position)
         self._set_param(path, [("FMUName", block.fmu_file), ("FMUInputMapping", "Flat"),
                                ("FMUOutputMapping", "Flat"), ("FMUSampleTime", matlab_number(block.sample_time))])
+        if block.inputs and not block.model_exchange:
+            # No numerical compensation of the co-simulation signals: the inputs are the ones of the container
+            # (decision 37)
+            self.lines += [f"ports = get_param({path}, 'PortHandles');",
+                           "for k = 1:numel(ports.Inport)",
+                           f"    set_param(ports.Inport(k), {matlab_string(COMPENSATION[0])}, "
+                           f"{matlab_string(COMPENSATION[1])});",
+                           "end"]
         for variable, start in block.parameters.items():
             self._variable(path, block, variable, start, "parameter")
         for variable, start in block.input_starts.items():
