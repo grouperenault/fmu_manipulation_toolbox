@@ -82,7 +82,7 @@ class FMUIOList:
             try:
                 clock = self.vr_table.get_local_clock(cport)
             except KeyError:
-                logger.error(f"Cannot expose clocked {direction}: {cport}")
+                logger.error(f"Cannot expose the clocked {direction} {cport.label}.")
                 return
             nb_clocked[cport.port.type_name][cport.fmu.name] += 1
 

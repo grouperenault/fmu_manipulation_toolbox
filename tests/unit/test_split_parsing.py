@@ -33,7 +33,7 @@ def test_header_with_uninterpretable_flags_raises():
     container_txt = io.BytesIO(b"Container Version 3\n1 0\n")
     with pytest.raises(FMUSplitterError) as exc:
         desc.parse_txt_file_header(container_txt, "resources/container.txt")
-    assert "Cannot interpret flags" in str(exc.value)
+    assert str(exc.value) == "Cannot interpret the flags '1 0'."
 
 
 def test_get_line_on_truncated_file_raises():
@@ -64,7 +64,7 @@ def test_split_non_container_fmu_raises(tmp_path):
 
     with pytest.raises(FMUSplitterError) as exc:
         FMUSplitter(str(plain))
-    assert "not an FMU Container" in str(exc.value)
+    assert str(exc.value) == "This FMU is not an FMU container."
 
 
 def test_close_is_safe_when_zip_was_never_assigned():

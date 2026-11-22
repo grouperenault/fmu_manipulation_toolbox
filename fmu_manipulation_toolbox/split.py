@@ -86,10 +86,10 @@ class FMUSplitter:
         self.dir_set = self.get_dir_set()
 
         if "resources/container.txt" not in self.filenames_list:
-            raise FMUSplitterError(f"FMU file {self.fmu_filename} is not an FMU Container.")
+            raise FMUSplitterError("This FMU is not an FMU container.")
 
         self.directory.mkdir(exist_ok=True)
-        logger.info(f"Preparing to split '{self.fmu_filename}' into '{self.directory}'")
+        logger.info(f"Preparing to split '{self.fmu_filename}' into '{self.directory}'.")
 
     def get_dir_set(self) -> set[str]:
         dir_set = set()
@@ -112,18 +112,18 @@ class FMUSplitter:
         even when ``__init__`` failed before ``self.zip`` was assigned (e.g.
         the FMU file does not exist): ``__del__`` must never raise."""
         if getattr(self, "zip", None) is not None:
-            logger.debug("Closing zip file")
+            logger.debug("Closing the ZIP file.")
             assert self.zip is not None
             self.zip.close()
             self.zip = None
 
     def split_fmu(self):
-        logger.info("Splitting...")
+        logger.info("Splitting.")
         config = self._split_fmu(fmu_filename=str(self.fmu_filename), relative_path="")
         config_filename = self.directory / self.fmu_filename.with_suffix(".json").name
         with open(config_filename, "w", encoding=ENCODING) as file:
             json.dump(config, file, indent=2)
-        logger.info(f"Container definition saved to '{config_filename}'")
+        logger.info(f"Container definition saved to '{config_filename}'.")
 
     def _split_fmu(self, fmu_filename: str, relative_path: str) -> dict[str, Any] | str:
         txt_filename = f"{relative_path}resources/container.txt"
@@ -137,7 +137,7 @@ class FMUSplitter:
                 if directory not in self.dir_set:
                     directory = f"{relative_path}resources/{fmu_candidate_filename}/"
                     if directory not in self.dir_set:
-                        raise FMUSplitterError(f"{directory} not found in FMU")
+                        raise FMUSplitterError(f"'{directory}' not found in the FMU.")
                 sub_config = self._split_fmu(fmu_filename=fmu_candidate_filename, relative_path=directory)
                 if isinstance(sub_config, str):
                     key = "fmu"
@@ -155,14 +155,14 @@ class FMUSplitter:
         return config
 
     def extract_fmu(self, directory: str, filename: str):
-        logger.debug(f"Extracting {directory} to {filename}")
+        logger.debug(f"Extracting '{directory}' to '{filename}'.")
         with zipfile.ZipFile(filename, "w", zipfile.ZIP_DEFLATED) as fmu_file:
             assert self.zip is not None
             for file in self.zip.namelist():
                 if file.startswith(directory) and len(file) > len(directory):
                     data = self.zip.read(file)
                     fmu_file.writestr(file[len(directory):], data)
-        logger.info(f"FMU Extraction of '{filename}'")
+        logger.info(f"Extracting '{filename}'.")
 
 
 class FMUSplitterDescription:
@@ -211,10 +211,10 @@ class FMUSplitterDescription:
     def get_line(file):
         for line in file:
             line = line.decode('utf-8').strip()
-            logger.debug(f"Read: {line}")
+            logger.debug(f"Read: '{line}'.")
             if not line.startswith("#"):
                 return line
-        raise FMUSplitterError("This file seems to be truncated")
+        raise FMUSplitterError("This file seems to be truncated.")
 
     def parse_model_description(self, directory: str, fmu_filename: str):
 
@@ -225,7 +225,7 @@ class FMUSplitterDescription:
 
         self.vr_to_name[fmu_filename] = dict((el, {}) for el in ALL_TYPES)
         with self.zip.open(filename) as file:
-            logger.debug(f"Parsing '{filename}' ({fmu_filename})")
+            logger.debug(f"Parsing '{filename}' of '{fmu_filename}'.")
             try:
                 model_description = ModelDescription.load(file.read())
             except ModelDescriptionError as error:
@@ -279,7 +279,7 @@ class FMUSplitterDescription:
             return START_VALUE_TYPES
 
     def parse_txt_file_header(self, file, txt_filename):
-        logger.debug("*** HEADER ***")
+        logger.debug("Reading the header.")
         header = file.readline().decode('utf-8').strip()
         if "Version " in header:
             self.file_format = int(header[header.index("Version ")+8:])
@@ -304,7 +304,7 @@ class FMUSplitterDescription:
                 self.file_format = 2
             logger.debug(f"File format: {self.file_format}")
         else:
-            raise FMUSplitterError(f"Cannot interpret flags '{flags}'")
+            raise FMUSplitterError(f"Cannot interpret the flags '{' '.join(flags)}'.")
 
         self.config["step_size"] = float(self.get_line(file))
 
@@ -315,10 +315,9 @@ class FMUSplitterDescription:
         nb_fmu_me = int(nb_fmu_tokens[1]) if len(nb_fmu_tokens) > 1 else 0
         nb_fmu = nb_fmu_cs + nb_fmu_me
 
-        logger.debug(f'mt             : {self.config["mt"]}')
-        logger.debug(f'profiling      : {self.config["profiling"]}')
-        logger.debug(f'sequential     : {self.config["sequential"]}')
-        logger.debug(f"Number of FMUs : {nb_fmu} ({nb_fmu_cs} CS, {nb_fmu_me} ME)")
+        logger.debug(f"Options: mt={self.config['mt']}, profiling={self.config['profiling']}, "
+                     f"sequential={self.config['sequential']}.")
+        logger.debug(f"Number of FMUs: {nb_fmu} ({nb_fmu_cs} CS, {nb_fmu_me} ME).")
 
         self.config["candidate_fmu"] = []
 
@@ -336,7 +335,7 @@ class FMUSplitterDescription:
             if f"{directory}/modelDescription.xml" not in self.zip.namelist():
                 directory = f"{base_directory}/{i:02x}"
                 if f"{directory}/modelDescription.xml" not in self.zip.namelist():
-                    raise FMUSplitterError(f"Cannot find in FMU directory in {directory}.")
+                    raise FMUSplitterError(f"Cannot find the FMU directory in '{directory}'.")
             self.parse_model_description(directory, fmu_filename)
             self.config["candidate_fmu"].append(fmu_filename)
             _library = self.get_line(file)
@@ -347,7 +346,7 @@ class FMUSplitterDescription:
             _initialization_order = self.get_line(file)
 
         _nb_local_variables = self.get_line(file)
-        logger.debug("*** END OF HEADER ***")
+        logger.debug("End of the header.")
 
     def add_port(self, fmi_type: str, fmu_id: int, fmu_vr: int, container_vr: int, dim:int=1):
         if fmu_id >= 0:
@@ -360,8 +359,8 @@ class FMUSplitterDescription:
                 # This container VR is not in the container's modelDescription.xml
                 # (e.g. FMI3-only types in an FMI2 container). It's an internal link
                 # variable, not an exposed container port — skip it.
-                logger.debug(f"Skipping container I/O entry: VR {container_vr} not found "
-                             f"in container's modelDescription.xml for type {fmi_type}")
+                logger.debug(f"Skipping a container I/O entry: valueReference {container_vr} of type {fmi_type} is not "
+                             f"in the modelDescription.xml of the container.")
                 return
             if not causality == "output":
                 causality = "input"
@@ -374,7 +373,7 @@ class FMUSplitterDescription:
             except KeyError:
                 self.config[causality] = [definition]
 
-            logger.debug(f"Adding container port {causality}: {definition}")
+            logger.debug(f"Adding a container port ({causality}): {definition}.")
         else:
             type_map = self.local_to_vr.setdefault(fmi_type, {})
             for local_offset in range(fmu_vr, fmu_vr + dim):
@@ -382,7 +381,7 @@ class FMUSplitterDescription:
 
     def parse_txt_file_ports(self, file):
         for fmi_type in self.supported_fmi_types:
-            logger.debug(f"*** container port {fmi_type} ***")
+            logger.debug(f"Reading the container ports of type {fmi_type}.")
             nb_port_variables = self.get_line(file).split(" ")[0]
             for _i in range(int(nb_port_variables)):
                 tokens = self.get_line(file).split(" ")
@@ -424,8 +423,8 @@ class FMUSplitterDescription:
             try:
                 return self.local_to_vr[fmi_type][int(local) & 0xFFFFFF]
             except KeyError:
-                raise FMUSplitterError(f"Cannot get pivot for {fmi_type} local={int(local) & 0xFFFFFF} "
-                                       f"({local})") from None
+                raise FMUSplitterError(f"Cannot get the pivot for {fmi_type} local={int(local) & 0xFFFFFF} "
+                                       f"({local}).") from None
         else:
             return int(local)
 
@@ -443,7 +442,7 @@ class FMUSplitterDescription:
 
     def parse_txt_file(self, txt_filename: str):
         self.parse_model_description(str(Path(txt_filename).parent.parent).replace("\\", "/"), ".")
-        logger.debug(f"Parsing container file '{txt_filename}'")
+        logger.debug(f"Parsing the container file '{txt_filename}'.")
         with (self.zip.open(txt_filename) as file):
             self.parse_txt_file_header(file, txt_filename)
             self.parse_txt_file_ports(file)
@@ -453,7 +452,7 @@ class FMUSplitterDescription:
 
                 for fmi_type in self.supported_fmi_types:
                     nb_input = int(self.get_line(file))
-                    logger.debug(f"INPUT of {fmu_filename} {fmi_type} : {nb_input}")
+                    logger.debug(f"Inputs of '{fmu_filename}' of type {fmi_type}: {nb_input}.")
 
                     for _i in range(nb_input):
                         if self.file_format >= 4:
@@ -465,7 +464,7 @@ class FMUSplitterDescription:
                     #clocked
                     if self.file_format >= 3 and not fmi_type == "clock":
                         nb_input = self.get_nb(self.get_line(file))
-                        logger.debug(f"INPUT of {fmu_filename} {fmi_type} : CLOCKED {nb_input}")
+                        logger.debug(f"Clocked inputs of '{fmu_filename}' of type {fmi_type}: {nb_input}.")
                         for _i in range(nb_input):
                             if self.file_format >= 4:
                                 # Line format:
@@ -489,7 +488,7 @@ class FMUSplitterDescription:
                 for fmi_type in self.supported_fmi_types_start:
                     nb_start_as_string = self.get_line(file).split(" ")[0]
                     nb_start = int(nb_start_as_string)
-                    logger.debug(f"nb start for {fmu_filename} {fmi_type} : {nb_start}")
+                    logger.debug(f"Start values of '{fmu_filename}' of type {fmi_type}: {nb_start}.")
                     for _i in range(nb_start):
                         tokens = self.get_line(file).split(" ")
                         vr = int(tokens[0])
@@ -504,7 +503,7 @@ class FMUSplitterDescription:
                 # Output per FMUs
                 for fmi_type in self.supported_fmi_types:
                     nb_output = int(self.get_line(file))
-                    logger.debug(f"OUTPUT of {fmu_filename} {fmi_type} : {nb_output}")
+                    logger.debug(f"Outputs of '{fmu_filename}' of type {fmi_type}: {nb_output}.")
 
                     for _i in range(nb_output):
                         if self.file_format >= 4:
@@ -515,7 +514,7 @@ class FMUSplitterDescription:
 
                     if self.file_format >=3 and not fmi_type == "clock":
                         nb_output = self.get_nb(self.get_line(file))
-                        logger.debug(f"OUTPUT {fmi_type} : CLOCKED {nb_output}")
+                        logger.debug(f"Clocked outputs of type {fmi_type}: {nb_output}.")
 
                         for _i in range(nb_output):
                             if self.file_format >= 4:
@@ -553,7 +552,7 @@ class FMUSplitterDescription:
                     if offset >= 0:
                         self.reset_triggers.append((fmu_filename, offset))
 
-            logger.debug("End of parsing.")
+            logger.debug("End of the parsing.")
 
         self._add_reset_triggers()
 
@@ -572,7 +571,7 @@ class FMUSplitterDescription:
                     source_link.extend_readers(target_link.readers)
                     del self.links[target_type][vr_to_int]
             else:
-                logger.warning(f"Unknown conversion function: {conversion_name}")
+                logger.warning(f"Unknown conversion function '{conversion_name}'.")
 
         covered_by_terminal = self._terminal_variables()
 
@@ -582,17 +581,17 @@ class FMUSplitterDescription:
                     # Orphan readers: no writer found for this container slot.
                     for reader in link.readers:
                         if (reader.fmu_filename, reader.port_name) in covered_by_terminal:
-                            logger.debug(f"Orphan reader silenced (covered by terminal): {reader}")
+                            logger.debug(f"Orphan reader silenced (covered by a terminal): {reader}.")
                             continue
                         if fmi_type == "clock":
                             logger.error(
-                                f"LS-BUS clocks connection are not supported in GUI. "
-                                f"{reader.fmu_filename}/{reader.port_name} is skipped")
+                                f"The connections of FMI-LS-BUS clocks are not supported: "
+                                f"'{reader.fmu_filename}/{reader.port_name}' is skipped.")
                         else:
                             logger.warning(
                                 f"Unresolved {fmi_type} input port "
-                                f"{reader.fmu_filename}/{reader.port_name} "
-                                f"(no matching writer); skipped")
+                                f"'{reader.fmu_filename}/{reader.port_name}' "
+                                f"(no matching writer): skipped.")
                     continue
 
                 writers = self._try_aggregate(link.writers)
@@ -626,7 +625,7 @@ class FMUSplitterDescription:
             try:
                 container_vr = self.local_to_vr[type_name][offset]
             except KeyError:
-                logger.warning(f"Reset trigger of '{fmu_filename}' not found (local {type_name} {offset}): skipped")
+                logger.warning(f"Reset trigger of '{fmu_filename}' not found (local {type_name} {offset}): skipped.")
                 continue
 
             # `local_to_vr` keeps the value references without their type byte.
@@ -675,7 +674,7 @@ class FMUSplitterDescription:
             for base, elem_set in type_map.items():
                 if names == elem_set:
                     logger.debug(
-                        f"Aggregated {len(ports)} ports into '{base}' ({fmu})")
+                        f"Aggregated {len(ports)} ports into '{base}' ('{fmu}').")
                     return [FMUSplitterPort(fmu, base)]
         return ports
 
@@ -744,8 +743,8 @@ class FMUSplitterDescription:
                 removed.add(idx)
             added.append([key[0], key[1], key[2], key[3]])
             logger.info(
-                f"Aggregated {len(idx_list)} port-links into terminal "
-                f"connection: {key[0]}/{key[1]} ↔ {key[2]}/{key[3]}")
+                f"Aggregated {len(idx_list)} port links into the terminal "
+                f"connection '{key[0]}/{key[1]}' ↔ '{key[2]}/{key[3]}'.")
 
         self.config["link"] = [link for i, link in enumerate(links) if i not in removed]
         self.config["link"].extend(added)

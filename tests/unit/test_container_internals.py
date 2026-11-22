@@ -250,6 +250,17 @@ def bouncing(area_dir) -> FMUContainer:
 
 
 @pytest.mark.area("containers/bouncing_ball")
+def test_automatic_wiring_messages(bouncing, caplog):
+    """The automatic wiring tells each port it links or exposes, a sentence per port (docs/developer/logging.md)."""
+    with caplog.at_level(logging.INFO, logger="fmu_manipulation_toolbox"):
+        bouncing.add_implicit_rule(auto_input=True, auto_output=True, auto_link=True)
+    assert "Auto link: port 'bb_velocity.fmu/velocity' to port 'bb_position.fmu/velocity'." in caplog.messages
+    assert "Auto output: port 'bb_position.fmu/position1' exposed as 'position1'." in caplog.messages
+    assert any(message.startswith("Automatic wiring: ") and message.endswith(" links.") for message in caplog.messages)
+    assert not any(message.startswith("AUTO") for message in caplog.messages)
+
+
+@pytest.mark.area("containers/bouncing_ball")
 def test_instances_of_one_fmu_are_distinct(bouncing):
     """An instance is designated by its name, its identifier comes from it, and its rules apply to it only."""
     instance = bouncing.get_fmu("bb_position.fmu", "bb_position-1.fmu")
@@ -283,12 +294,14 @@ def test_one_name_cannot_designate_two_files(bouncing):
 
 @pytest.mark.area("containers/bouncing_ball")
 @pytest.mark.parametrize("rule, message", [
-    (lambda c: c.add_input("x", "bb_position.fmu", "position1"), "as INPUT of the container"),
-    (lambda c: c.add_output("bb_position.fmu", "velocity", "v"), "as OUTPUT of the container"),
-    (lambda c: c.drop_port("bb_position.fmu", "velocity"), "trying to DROP input"),
-    (lambda c: c.add_link("bb_position.fmu", "velocity", "bb_velocity.fmu", "reset"), "instead of OUTPUT"),
-    (lambda c: c.add_link("bb_position.fmu", "position1", "bb_velocity.fmu", "velocity"), "instead of INPUT"),
-    (lambda c: c.add_start_value("bb_position.fmu", "velocity", "fast"), "not conforming to real64"),
+    (lambda c: c.add_input("x", "bb_position.fmu", "position1"), "as an input of the container"),
+    (lambda c: c.add_output("bb_position.fmu", "velocity", "v"), "as an output of the container"),
+    (lambda c: c.drop_port("bb_position.fmu", "velocity"), "its causality is 'input', not 'output'"),
+    (lambda c: c.add_link("bb_position.fmu", "velocity", "bb_velocity.fmu", "reset"),
+     "has the causality 'input', not 'output'"),
+    (lambda c: c.add_link("bb_position.fmu", "position1", "bb_velocity.fmu", "velocity"),
+     "has the causality 'output', not 'input'"),
+    (lambda c: c.add_start_value("bb_position.fmu", "velocity", "fast"), "not conforming to the format of 'real64'"),
     (lambda c: c.add_start_value("bb_position.fmu", "velocity", "1 2"), "dimension 1"),
 ], ids=["input-causality", "output-causality", "drop-causality", "link-from-input", "link-to-output",
         "start-format", "start-dimension"])
@@ -308,7 +321,8 @@ def test_boolean_start_value(bouncing, value, expected):
 @pytest.mark.area("containers/bouncing_ball")
 def test_duplicate_output_name(bouncing):
     bouncing.add_output("bb_position.fmu", "position1", "out")
-    with pytest.raises(FMUContainerError, match="Duplicate OUTPUT out"):
+    message = "The output 'out' of the container is already connected to port 'bb_position.fmu/position1'"
+    with pytest.raises(FMUContainerError, match=message):
         bouncing.add_output("bb_velocity.fmu", "velocity", "out")
 
 
@@ -319,15 +333,15 @@ def test_duplicate_output_name(bouncing):
     (lambda c: c.add_input("v", "bb_position.fmu", "velocity"),
      lambda c: c.add_link("bb_velocity.fmu", "velocity", "bb_position.fmu", "velocity"), "the container input 'v'"),
     (lambda c: c.add_link("bb_velocity.fmu", "velocity", "bb_position.fmu", "velocity"),
-     lambda c: c.add_input("v", "bb_position.fmu", "velocity"), "a link from Port bb_velocity.fmu/velocity"),
+     lambda c: c.add_input("v", "bb_position.fmu", "velocity"), "a link from port 'bb_velocity.fmu/velocity'"),
     (lambda c: c.add_link("bb_velocity.fmu", "velocity", "bb_position.fmu", "velocity"),
      lambda c: c.add_link("bb_position.fmu", "position1", "bb_position.fmu", "velocity"),
-     "a link from Port bb_velocity.fmu/velocity"),
+     "a link from port 'bb_velocity.fmu/velocity'"),
 ], ids=["input-input", "input-link", "link-input", "link-link"])
 def test_input_fed_twice(bouncing, first, second, message):
     """An input of an embedded FMU has one feeder, a container input or a link."""
     first(bouncing)
-    with pytest.raises(FMUContainerError, match=f"Port bb_position.fmu/velocity is already fed by {message}"):
+    with pytest.raises(FMUContainerError, match=f"Port 'bb_position.fmu/velocity' is already fed by {message}"):
         second(bouncing)
 
 
@@ -356,7 +370,7 @@ def test_missing_fmu_is_an_error(bouncing):
 def test_lossy_link_is_accepted_with_a_warning(bouncing, caplog):
     with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
         bouncing.add_link("bb_velocity.fmu", "velocity", "bb_velocity.fmu", "reset")
-    assert "Lossy conversion F64_B" in caplog.text
+    assert "Lossy conversion 'F64_B' applied from Port 'bb_velocity.fmu/velocity' to port " in caplog.text
 
 
 # --------------------------------------------------------------------------- #
@@ -694,7 +708,7 @@ def test_implicit_rules_leave_out_clocks_and_clocked_variables(node, caplog):
         node.add_implicit_rule(auto_input=True, auto_output=True, auto_link=False, auto_local=True)
     assert not node.inputs and not node.outputs
     for port in ("CanChannel.Rx_Clock", "CanChannel.Rx_Data", "CanChannel.Tx_Clock", "CanChannel.Tx_Data"):
-        assert f"{port} is not exposed" in caplog.text
+        assert f"{port}' is not exposed" in caplog.text
 
 
 # --------------------------------------------------------------------------- #
@@ -733,8 +747,8 @@ def test_a_linked_time_based_input_clock_is_not_scheduled_again(clocked):
 def test_sanity_check_tells_the_scheduled_clocks_apart(clocked, caplog):
     with caplog.at_level(logging.INFO, logger="fmu_manipulation_toolbox"):
         clocked.sanity_check(0.1)
-    assert "Input clock 'Port model.fmu/periodic' is not linked: the container schedules it." in caplog.text
-    assert "Input 'Port model.fmu/triggered' is not connected" in caplog.text
+    assert "Input clock 'model.fmu/periodic' is not linked: the container schedules it." in caplog.text
+    assert "Input 'model.fmu/triggered' is not connected." in caplog.text
 
 
 DATA_DIR = Path(__file__).parent.parent / "data"

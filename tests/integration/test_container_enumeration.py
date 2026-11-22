@@ -47,6 +47,6 @@ def test_enumeration_is_not_exposed_by_an_fmi2_container(feedthrough, caplog):
     container.add_output("Feedthrough.fmu", "Enumeration_output", "option_out")
     container.make_fmu("enumeration2.fmu", step_size=0.001)
 
-    assert "Cannot expose (output) 'option_out' because type 'integer64' is not compatible with FMI-2.0" \
+    assert "Cannot expose the output 'option_out': its type 'integer64' is not compatible with FMI-2." \
         in caplog.text
     assert 'name="option_out"' not in read_entry("enumeration2.fmu", "modelDescription.xml").decode("utf-8")

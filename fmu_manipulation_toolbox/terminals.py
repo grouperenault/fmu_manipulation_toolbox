@@ -54,7 +54,7 @@ class Terminal:
         elif self.matching == "none":
             links = []  # A grouping terminal has no link of its own, only those of its sub-terminals.
         else:
-            logger.error(f"Rule '{self.matching}' not defined to connect Terminal '{self.path}'")
+            logger.error(f"Rule '{self.matching}' is not defined to connect the terminal '{self.path}'.")
             return []
 
         return links + self.connect_sub_terminals(other)
@@ -68,15 +68,16 @@ class Terminal:
             if sub_terminal is None or other_sub_terminal is None:
                 present, absent = (other_sub_terminal, self) if sub_terminal is None else (sub_terminal, other)
                 if self.matching == "bus" or present.kind == CONFIGURATION_KIND:
-                    logger.debug(f"Sub-terminal '{present.path}' has no peer in Terminal '{absent.path}'")
+                    logger.debug(f"Sub-terminal '{present.path}' has no peer in the terminal '{absent.path}'.")
                 else:
-                    raise TerminalError(f"Sub-terminal '{present.path}' has no peer in Terminal '{absent.path}'")
+                    raise TerminalError(f"Sub-terminal '{present.path}' has no peer in the terminal '{absent.path}'.")
             elif sub_terminal.kind == CONFIGURATION_KIND:
-                logger.debug(f"Sub-terminal '{sub_terminal.path}' holds parameters: no link")
+                logger.debug(f"Sub-terminal '{sub_terminal.path}' holds parameters: no link.")
             elif sub_terminal == other_sub_terminal:
                 links += sub_terminal.connect(other_sub_terminal)
             else:
-                raise TerminalError(f"Incompatible sub-terminals: {sub_terminal} <-> {other_sub_terminal}")
+                raise TerminalError(f"Incompatible sub-terminals '{sub_terminal.path}' and "
+                                    f"'{other_sub_terminal.path}'.")
 
         return links
 
@@ -102,7 +103,7 @@ class Terminal:
                 other_member = other.members[member_name]
                 links.append((member, other_member))
         else:
-            logger.error(f"PLUG Terminal '{self.name}' does not exactly fit Terminal '{other.name}'")
+            logger.error(f"Plug terminal '{self.name}' does not exactly fit the terminal '{other.name}'.")
 
         return links
 
@@ -120,14 +121,14 @@ class Terminal:
             for member, other_member in zip(self.members.values(), other.members.values(), strict=True):
                 links.append((member, other_member))
         else:
-            logger.error(f"SEQUENCE Terminal '{self.name}' does not exactly fit Terminal '{other.name}'")
+            logger.error(f"Sequence terminal '{self.name}' does not exactly fit the terminal '{other.name}'.")
         return links
 
     def connect_transceiver(self, other) -> list[tuple[str, str]]:
         for terminal in (self, other):
             missing = [member for member in TRANSCEIVER_MEMBERS if member not in terminal.members]
             if missing:
-                raise TerminalError(f"Terminal '{terminal.path}' has no member {', '.join(missing)}")
+                raise TerminalError(f"Terminal '{terminal.path}' has no member {', '.join(missing)}.")
 
         return [(self.members["Tx_Data"], other.members["Rx_Data"]),
                 (self.members["Tx_Clock"], other.members["Rx_Clock"]),
@@ -166,9 +167,9 @@ class Terminals:
             # The schema allows GraphicalRepresentation before Terminals, and no Terminals at all.
             for element in xml.getroot().findall("Terminals/Terminal"):
                 terminal = self.add_terminal(element)
-                logger.debug(f"Terminal '{terminal.name}' defined with {len(terminal.members)} signals")
+                logger.debug(f"Terminal '{terminal.name}' defined with {len(terminal.members)} signals.")
         except ET.ParseError as e:
-            logger.error(f"Cannot parse {label}: {e}")
+            logger.error(f"Cannot parse '{label}': {e}.")
 
     def __iter__(self):
         return iter(self.terminals.values())

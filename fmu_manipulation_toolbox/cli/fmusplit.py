@@ -10,7 +10,7 @@ from .utils import ExitCode, close_logger, make_wide, setup_logger
 def fmusplit():
     logger = setup_logger()
 
-    logger.info(f"FMUSplit version {version}")
+    logger.info(f"FMUSplit version {version}.")
     parser = argparse.ArgumentParser(prog="fmusplit", description="Split FMU Container into FMU's",
                                      formatter_class=make_wide(argparse.ArgumentDefaultsHelpFormatter),
                                      add_help=False,
@@ -35,11 +35,11 @@ def fmusplit():
             with FMUSplitter(fmu_filename) as splitter:
                 splitter.split_fmu()
         except FMUSplitterError as e:
-            logger.fatal(f"{fmu_filename}: {e}")
+            logger.critical(f"'{fmu_filename}': {e}")
             close_logger(logger)
             sys.exit(ExitCode.INVALID_INPUT)
         except FileNotFoundError as e:
-            logger.fatal(f"Cannot read file: {e}")
+            logger.critical(f"Cannot read the file: {e}.")
             close_logger(logger)
             sys.exit(ExitCode.INPUT_UNREADABLE)
 

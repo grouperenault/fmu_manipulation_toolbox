@@ -125,7 +125,7 @@ def test_container_follows_the_standard(xcp_dir, fmi_version, caplog):
         container.add_implicit_rule(auto_input=False, auto_output=False, auto_link=False)
         container.make_fmu("container.fmu", step_size=0.1)
     # The port of the FMU of the other FMI version is not exposed (its type would not be the one of the role)
-    assert "XCP.TCP.Port (XCPServiceTCPPort) is not exposed" in caplog.text
+    assert "XCP.TCP.Port' (XCPServiceTCPPort) is not exposed" in caplog.text
     check = OperationLsXcpCheck()
     with FMU("container.fmu") as fmu:
         fmu.apply_operation(check)

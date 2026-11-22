@@ -1,6 +1,6 @@
 # Plan: consistent log messages
 
-**Created**: 13 October 2026 — **Status**: steps 1 to 3 done; decisions D1 to D6 taken (22 November 2026); D7 to D9 to be decided at
+**Created**: 13 October 2026 — **Status**: steps 1 to 3 and 4a done; decisions D1 to D6 taken (22 November 2026); D7 to D9 to be decided at
 the start of their step — **Branch**: `feature/log-consistency`, from `integration` (`e8b1128`) — **Roadmap**: "log
 consistency" — **Origin**: review of the logs of FMU Tool during `compile_sources.md` (decision D16)
 
@@ -134,6 +134,17 @@ Taken on 22 November 2026, at the start of step 3:
 - **D15 — Checker loaded from a file** (#11): `Checker 'X' loaded from 'file.py'.` (INFO: the user gave the file);
   the checkers of the extensions (entry points) stay in DEBUG: `Addon checker 'X' loaded.`
 
+Taken on 22 November 2026, at the start of step 4:
+
+- **D16 — Automatic wiring**: the prefix is kept, written as text: `Auto link: port 'a.fmu/y' to port 'b.fmu/u'.`,
+  `Auto output: port 'a.fmu/y' exposed as 'y'.`, `Profiling: port 'a.fmu/container.p' exposed.`,
+  `Automatic wiring: 2 parameters, 1 inputs, 3 outputs, 1 links.`
+- **D17 — Actions of the AI Assistant** (FMU Container Builder): the prefix `[AI]` becomes a sentence:
+  `AI Assistant: port 'a.fmu/y' linked to port 'b.fmu/u'.`
+- **D18 — Internal inconsistencies of the GUI** (selection out of sync, scene deleted...): `DEBUG`.
+- **D19 — Two commits for step 4**: 4a (builder, rules, terminals, assembly, split, CLI), 4b (FMU Container
+  Builder, MCP bridge).
+
 ### To be decided at the start of the step concerned
 
 | # | Question | Step |
@@ -182,8 +193,15 @@ Commit message: `Operations, remoting and checkers: log messages aligned with th
 
 - Inventory then alignment of `split.py`, `assembly.py`, `container/`, the CLI `fmucontainer` and `fmusplit`, FMU
   Container Builder (`gui/fmucontainer/`).
+- 4a done: `container/` (builder, rules, embedded, txt, xcp), `terminals.py`, `assembly.py`, `split.py`, the CLI
+  `fmucontainer` and `fmusplit` (`logger.fatal` replaced by `logger.critical`). `ContainerPort` gives its name
+  between quotes (`Port 'a.fmu/y'`, `label`: `'a.fmu/y'`). By D3, two `CRITICAL` of the builder become `ERROR`, the
+  container being produced: no common OS for the embedded FMUs, library of the runtime not found.
+- 4b: FMU Container Builder (`gui/fmucontainer/`: `__main__.py`, `assembly_io.py`, `mcp_bridge.py`, `tree/`), with
+  `exception_message()` (step 2) for the exceptions.
 
-Commit message: `Container tools: log messages aligned with the conventions`
+Commit messages: `Container tools: log messages aligned with the conventions` (4a), `FMU Container Builder: log
+messages aligned with the conventions` (4b)
 
 ### Step 5 — Rest of the package
 

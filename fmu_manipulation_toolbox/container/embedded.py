@@ -106,7 +106,7 @@ class EmbeddedFMUPort:
                 size *= dimension[1]
             else:
                 raise FMUError(f"Port '{self.name}' depends on structuralParameter '{dimension[1]}' "
-                               f"which is not supported")
+                               f"which is not supported.")
         return size
 
     def xml(self, vr: int, name=None, causality=None, start=None, fmi_version=2,
@@ -148,8 +148,8 @@ class EmbeddedFMUPort:
         try:
             fmi_type = CONTAINER_TO_FMI[fmi_version][type_name or self.type_name]
         except KeyError:
-            logger.error(f"Cannot expose ({causality}) '{name}' because type '{type_name or self.type_name}' is not "
-                         f"compatible with FMI-{fmi_version}.0")
+            logger.error(f"Cannot expose the {causality} '{name}': its type '{type_name or self.type_name}' is not "
+                         f"compatible with FMI-{fmi_version}.")
             return None
 
         if fmi_version == 2 and self.is_fmi2_aggregate:
@@ -185,7 +185,7 @@ class EmbeddedFMUPort:
             return variable
 
         else:
-            logger.critical(f"Unknown version {fmi_version}. BUG?")
+            logger.critical(f"Unknown FMI version {fmi_version}.")
             return None
 
     @staticmethod
@@ -260,7 +260,7 @@ class EmbeddedFMU(OperationAbstract):
         self.id = Path(self.name).stem.lower()
         self.is_instance = self.name != Path(filename).name
 
-        logger.debug(f"Analysing {self.name}")
+        logger.debug(f"Analysing '{self.name}'.")
         self.terminals = Terminals(self.fmu.tmp_directory)
         self.ls = LayeredStandard(self.fmu.tmp_directory)
 
@@ -391,7 +391,7 @@ class EmbeddedFMU(OperationAbstract):
             try:
                 self.step_size = float(attrs['stepSize'])
             except KeyError:
-                logger.warning(f"FMU '{self.name}' does not specify preferred step size")
+                logger.warning(f"FMU '{self.name}' does not specify a preferred step size.")
         self.start_time = float(attrs.get("startTime", 0.0))
         self.stop_time = float(attrs.get("stopTime", self.start_time + 1.0))
 

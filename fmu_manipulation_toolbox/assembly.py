@@ -263,7 +263,7 @@ class AssemblyNode:
             try:
                 self.step_size = float(step_size)
             except ValueError:
-                logger.warning(f"Step size '{step_size}' is incorrect format.")
+                logger.warning(f"Step size '{step_size}' is not a number.")
                 self.step_size = None
         else:
             self.step_size = None
@@ -311,10 +311,10 @@ class AssemblyNode:
             sub_node.name = str(uuid.uuid4())+".fmu"
 
         if sub_node.parent is not None:
-            raise AssemblyError(f"Internal Error: AssemblyNode {sub_node.name} is already parented.")
+            raise AssemblyError(f"Internal error: node '{sub_node.name}' already has a parent.")
 
         if sub_node.name in self.children:
-            raise AssemblyError(f"Internal Error: AssemblyNode {sub_node.name} is already child of {self.name}")
+            raise AssemblyError(f"Internal error: node '{sub_node.name}' is already a child of '{self.name}'.")
 
         sub_node.parent = self
         self.children[sub_node.name] = sub_node
@@ -479,7 +479,7 @@ class AssemblyNode:
                            mt_threshold=self.mt_threshold)
 
         for node in self.children.values():
-            logger.info(f"Deleting transient FMU Container '{node.name}'")
+            logger.info(f"Deleting the transient FMU container '{node.name}'.")
             (fmu_directory / node.name).unlink()
 
     def get_final_from(self, port: Port) -> Port:
@@ -509,7 +509,7 @@ class AssemblyNode:
                 if len(ancestors) == 1:
                     return child.get_final_from(ancestors[0])  # child output port
 
-        raise AssemblyError(f"{self.name}: Port {port} is not connected upstream.")
+        raise AssemblyError(f"'{self.name}': port '{port}' is not connected upstream.")
 
     def get_final_to(self, port: Port) -> Port:
         """Resolve the ultimate destination port by traversing the assembly hierarchy downward.
@@ -538,7 +538,7 @@ class AssemblyNode:
                 if len(successors) == 1:
                     return child.get_final_to(successors[0])  # Child input port
 
-        raise AssemblyError(f"Node {self.name}: Port {port} is not connected downstream.")
+        raise AssemblyError(f"'{self.name}': port '{port}' is not connected downstream.")
 
     def get_fmu_connections(self, fmu_name: str) -> list[Connection]:
         """Get all resolved connections involving a specific embedded FMU.
@@ -557,7 +557,7 @@ class AssemblyNode:
         """
         connections = []
         if fmu_name not in self.fmu_names_list:
-            raise AssemblyError(f"Internal Error: FMU {fmu_name} is not embedded by {self.name}.")
+            raise AssemblyError(f"Internal error: FMU '{fmu_name}' is not embedded by '{self.name}'.")
         for link in self.links:
             if link.from_port.fmu_name == fmu_name:
                 connections.append(Connection(link.from_port, self.get_final_to(link.to_port)))
@@ -646,7 +646,7 @@ class Assembly:
         self.fmu_directory = fmu_directory
 
         if not fmu_directory.is_dir():
-            raise AssemblyError(f"FMU directory is not valid: '{fmu_directory}'")
+            raise AssemblyError(f"FMU directory '{fmu_directory}' is not valid.")
 
         self.root: AssemblyNode | None = None
 
@@ -666,7 +666,7 @@ class Assembly:
             AssemblyError: If the file format is not supported.
         """
         if self.filename:
-            logger.info(f"Reading '{self.filename}'")
+            logger.info(f"Reading '{self.filename}'.")
             if self.filename.suffix == ".json":
                 self.read_json()
             elif self.filename.suffix == ".ssp":
@@ -674,7 +674,7 @@ class Assembly:
             elif self.filename.suffix == ".csv":
                 self.read_csv()
             else:
-                raise AssemblyError(f"Not supported file format '{self.filename}")
+                raise AssemblyError(f"File format of '{self.filename}' is not supported.")
         else:
             raise AssemblyError("Filename should be specified for reading.")
 
@@ -722,7 +722,7 @@ class Assembly:
                     self._read_csv_rule(self.root, rule.upper(),
                                         from_fmu_filename, from_port_name, to_fmu_filename, to_port_name)
                 except AssemblyError as e:
-                    logger.error(f"Line #{i+2}: {e}. Line skipped.")
+                    logger.error(f"Line #{i+2}: {e} Line skipped.")
                     continue
 
     @staticmethod
@@ -742,21 +742,21 @@ class Assembly:
 
         elif rule == "INPUT":
             if not to_fmu_filename or not to_port_name:
-                raise AssemblyError("Missing INPUT ports information.")
+                raise AssemblyError("Missing ports of an input rule.")
             if not from_port_name:
                 from_port_name = to_port_name
             node.add_input(from_port_name, to_fmu_filename, to_port_name)
 
         elif rule == "OUTPUT":
             if not from_fmu_filename or not from_port_name:
-                raise AssemblyError("Missing OUTPUT ports information.")
+                raise AssemblyError("Missing ports of an output rule.")
             if not to_port_name:
                 to_port_name = from_port_name
             node.add_output(from_fmu_filename, from_port_name, to_port_name)
 
         elif rule == "DROP":
             if not from_fmu_filename or not from_port_name:
-                raise AssemblyError("Missing DROP ports information.")
+                raise AssemblyError("Missing ports of a drop rule.")
             node.add_drop_port(from_fmu_filename, from_port_name)
 
         elif rule == "LINK":
@@ -764,11 +764,11 @@ class Assembly:
 
         elif rule == "START":
             if not from_fmu_filename or not from_port_name or not to_fmu_filename:
-                raise AssemblyError("Missing START ports information.")
+                raise AssemblyError("Missing ports of a start rule.")
 
             node.add_start_value(from_fmu_filename, from_port_name, to_fmu_filename)
         else:
-            raise AssemblyError(f"unexpected rule '{rule}'. Line skipped.")
+            raise AssemblyError(f"Unexpected rule '{rule}'.")
 
     def write_csv(self, filename: str | Path):
         """Export the assembly as a CSV file.
@@ -812,7 +812,7 @@ class Assembly:
             try:
                 data = json.load(file)
             except json.decoder.JSONDecodeError as e:
-                raise AssemblyError(f"Cannot read json: {e}") from e
+                raise AssemblyError(f"Cannot read the JSON file: {e}.") from e
         self.root = self._json_decode_node(data)
         if not self.root.name:
             self.root.name = str(self.filename.with_suffix(".fmu").name)
@@ -877,7 +877,7 @@ class Assembly:
                 self._json_decode_keyword('drop', value, node.add_drop_port)
 
             else:
-                logger.error(f"JSON: unexpected keyword {key}. Skipped.")
+                logger.error(f"JSON: unexpected keyword '{key}', skipped.")
 
         for fmu_name, fmu_path in paths.items():  # once every FMU of the "fmu" block is known
             if fmu_name not in node.fmu_names_list:
@@ -1032,7 +1032,7 @@ class Assembly:
                     # FMUs keep their path relative to the archive root: two FMUs with the same file name in
                     # different directories do not overwrite each other.
                     zin.extract(file, path=extract_folder)
-                    logger.debug(f"Extracted: {file.filename} (into {extract_folder})")
+                    logger.debug(f"Extracted '{file.filename}' into '{extract_folder}'.")
 
             self.description_pathname = None
             if "SystemStructure.ssd" in zin.namelist():
@@ -1044,7 +1044,7 @@ class Assembly:
                 self.root = sdd.parse("SystemStructure.ssd")
                 self.root.name = str(self.filename.with_suffix(".fmu"))
             else:
-                raise AssemblyError(f"'SystemStructure.ssd' file not found in '{self.fmu_directory / self.filename}'")
+                raise AssemblyError(f"'SystemStructure.ssd' not found in '{self.fmu_directory / self.filename}'.")
 
     def make_fmu(self, dump_json=False, fmi_version=2, datalog=False, filename=None):
         """Build the FMU Container from the loaded assembly.
@@ -1059,7 +1059,7 @@ class Assembly:
                            fmi_version=fmi_version, datalog=datalog, filename=filename)
         if dump_json:
             dump_file = Path(self.input_pathname.stem + "-dump").with_suffix(".json")
-            logger.info(f"Dump Json '{dump_file}'")
+            logger.info(f"Writing '{dump_file}'.")
             self.write_json(dump_file)
 
     def get_flat_links(self) -> list[list[str]]:

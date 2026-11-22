@@ -13,7 +13,7 @@ from .utils import ExitCode, close_logger, make_wide, setup_logger
 def fmucontainer():
     logger = setup_logger()
 
-    logger.info(f"FMUContainer version {version}")
+    logger.info(f"FMUContainer version {version}.")
     parser = argparse.ArgumentParser(prog="fmucontainer", description="Generate FMU from FMU's",
                                      formatter_class=make_wide(argparse.ArgumentDefaultsHelpFormatter),
                                      add_help=False,
@@ -88,7 +88,7 @@ def fmucontainer():
         logger.setLevel(logging.DEBUG)
 
     fmu_directory = Path(config.fmu_directory)
-    logger.info(f"FMU directory: '{fmu_directory}'")
+    logger.info(f"FMU directory: '{fmu_directory}'.")
 
     for description in config.container_descriptions_list:
         try:
@@ -109,11 +109,11 @@ def fmucontainer():
                                 default_ts_multiplier=config.ts_multiplier,
                                 default_reset_ports=config.reset_ports, default_mt_threshold=config.mt_threshold)
         except FileNotFoundError as e:
-            logger.fatal(f"Cannot read file: {e}")
+            logger.critical(f"Cannot read the file: {e}.")
             close_logger(logger)
             sys.exit(ExitCode.INPUT_UNREADABLE)
         except (FMUContainerError, AssemblyError) as e:
-            logger.fatal(f"{filename}: {e}")
+            logger.critical(f"'{filename}': {e}")
             close_logger(logger)
             sys.exit(ExitCode.INVALID_INPUT)
 
@@ -121,10 +121,10 @@ def fmucontainer():
             assembly.make_fmu(dump_json=config.dump, fmi_version=int(config.fmi_version), datalog=config.datalog)
             if config.dump_ssp:
                 dump_file = Path(Path(filename).stem + "-dump").with_suffix(".ssp")
-                logger.info(f"Dump SSP '{dump_file}'")
+                logger.info(f"Writing '{dump_file}'.")
                 assembly.write_ssp(dump_file)
         except (FMUContainerError, AssemblyError) as e:
-            logger.fatal(f"{filename}: {e}")
+            logger.critical(f"'{filename}': {e}")
             close_logger(logger)
             sys.exit(ExitCode.OPERATION_FAILED)
 

@@ -166,7 +166,7 @@ def test_fmucontainer_missing_description_exits(area_dir, caplog):
         fmucontainer()
 
     assert exc.value.code == ExitCode.INPUT_UNREADABLE
-    assert "Cannot read file" in caplog.text
+    assert "Cannot read the file: " in caplog.text
 
 
 @pytest.mark.area("containers/bouncing_ball")
@@ -195,7 +195,8 @@ def test_fmusplit_not_a_container_exits(area_dir, caplog):
         fmusplit()
 
     assert exc.value.code == ExitCode.INVALID_INPUT
-    assert "not an FMU Container" in caplog.text
+    assert "'bouncing_ball.fmu': This FMU is not an FMU container." in caplog.text
+    assert caplog.records[-1].levelname == "CRITICAL"
 
 
 @pytest.mark.area("operations")
@@ -206,5 +207,5 @@ def test_fmusplit_missing_file_exits(area_dir, caplog):
         fmusplit()
 
     assert exc.value.code == ExitCode.INPUT_UNREADABLE
-    assert "Cannot read file" in caplog.text
+    assert "Cannot read the file: " in caplog.text
 

@@ -83,12 +83,12 @@ def expose_variables(container: "FMUContainer", auto_wired):
                 fmi_type = CONTAINER_TO_FMI[container.fmi_version].get(cport.port.type_name)
                 expected = XCP_ROLE_TYPES[XCP_ROLES[role]][container.fmi_version] if role in XCP_ROLES else ()
                 if fmi_type not in expected:
-                    logger.warning(f"FMI-LS-XCP: {cport} ({role}) is not exposed: an FMI-{container.fmi_version}.0 "
+                    logger.warning(f"FMI-LS-XCP: {cport} ({role}) is not exposed: an FMI-{container.fmi_version} "
                                    f"container would expose it as {fmi_type or cport.port.type_name}, FMI-LS-XCP "
                                    f"needs {' or '.join(expected)}. Its value is its start value.")
                     continue
                 name = f"{fmu.id}.{cport.port.name}"
-                logger.info(f"FMI-LS-XCP: Expose {cport} ({role}) as {name}")
+                logger.info(f"FMI-LS-XCP: {cport} ({role}) exposed as '{name}'.")
                 container.add_input(name, fmu.name, cport.port.name)
                 auto_wired.add_parameter(name, fmu.name, cport.port.name)
 
