@@ -1,7 +1,8 @@
 # Plan: consistent log messages
 
-**Created**: 13 October 2026 — **Status**: draft, decisions D1 to D6 open (to be reviewed by the user later) —
-**Roadmap**: not listed — **Origin**: review of the logs of FMU Tool during `compile_sources.md` (decision D16)
+**Created**: 13 October 2026 — **Status**: decisions D1 to D6 taken (22 November 2026); D7 to D9 to be decided at
+the start of their step — **Branch**: `feature/log-consistency`, from `integration` (`e8b1128`) — **Roadmap**: "log
+consistency" — **Origin**: review of the logs of FMU Tool during `compile_sources.md` (decision D16)
 
 The messages of the `fmu_manipulation_toolbox` logger are read in three places: the console of the CLI
 (`cli/utils.py`, `LEVEL    | message`, coloured), the log widget of the GUIs (`gui/log.py`, `LogWidget`: colour
@@ -16,7 +17,8 @@ alignment of the existing messages.
 About 350 logging calls in the package; about 100 in the scope of FMU Tool (`operations.py` 42, `checker.py` 14,
 `cli/fmutool.py` 14, `compiler.py` 8, `gui/fmutool/__main__.py` 7, `remoting.py` 6, `gui/helper.py` 6). The other
 large modules are `container/builder.py` (44), `gui/fmucontainer/assembly_io.py` (44), `split.py` (34),
-`gui/fmucontainer/mcp_bridge.py` (19), `assembly.py` (13), `assistant/headless.py` (11).
+`gui/fmucontainer/mcp_bridge.py` (19), `assembly.py` (13), `assistant/headless.py` (11). 25 calls of
+`logger.fatal` / `logger.critical`.
 
 ### Reference style (already the majority)
 
@@ -27,27 +29,41 @@ names and paths between single quotes, level carried by the logger (no prefix in
 
 ### Inconsistencies found in the scope of FMU Tool
 
+Line numbers checked again on 22 November 2026.
+
 | # | Where | Message / behaviour | Problem |
 |---|---|---|---|
-| 1 | `cli/fmutool.py:142` | `logger.info("INFO    Modified FMU is not saved. …")` | Level written in the text: `INFO     \| INFO    Modified …` |
-| 2 | `cli/fmutool.py:144` | `logger.fatal(f"FATAL ERROR: {reason}")` | Double prefix: `CRITICAL \| FATAL ERROR: …` |
-| 3 | `cli/fmutool.py:88,135,139` | `READING Input='…'`, `WRITING Output='…'`, `WRITING ModelDescriptor='…'` | Upper-case tags in the text, a style used nowhere else |
-| 4 | `cli/fmutool.py:84,92,122,126` | `logger.fatal(...)` for usage errors and refused operations | `CRITICAL` used for ordinary errors (the GUI uses `ERROR` for the same `OperationError`) |
-| 5 | `cli/fmutool.py:98-115` | `Applying operation for :`, `     - causality = …`, `     => …` | Space before the colon, ad-hoc indentation |
+| 1 | `cli/fmutool.py:211` | `logger.info("INFO    Modified FMU is not saved. …")` | Level written in the text: `INFO     \| INFO    Modified …` |
+| 2 | `cli/fmutool.py:213` | `logger.fatal(f"FATAL ERROR: {reason}")` | Double prefix: `CRITICAL \| FATAL ERROR: …` |
+| 3 | `cli/fmutool.py:153,204,208` | `READING Input='…'`, `WRITING ModelDescriptor='…'`, `WRITING Output='…'` | Upper-case tags in the text, a style used nowhere else |
+| 4 | `cli/fmutool.py:120-195` vs `gui/fmutool/__main__.py:538,688` | The CLI logs usage errors and refused operations as `CRITICAL`; the GUI logs the same `OperationError` as `ERROR` | Same failure, two levels (D3: `CRITICAL`, no result is produced) |
+| 5 | `cli/fmutool.py:163-183` | `Applying operation for :`, `     - causality = …`, `     => …` | Space before the colon, ad-hoc indentation |
 | 6 | `remoting.py:64` | `{bitness} already exists. Add front-end.` | No quotes; imperative instead of a statement |
-| 7 | `remoting.py:75,82` | `logger.critical("Cannot add remoting client: …")` then the operation goes on | `CRITICAL` but not fatal: the FMU is saved without its client/server. Should be an `OperationError` |
-| 8 | `remoting.py:106-107` | `Remoting nb input port: 3` | Abbreviation, no period |
-| 9 | `checker.py:51` | `Expected FMI 2,3 versions.` | Odd list formatting; `FMI 2.0` vs `FMI-2` elsewhere |
-| 10 | `checker.py:75,77,163,165` | `FMI-3`, `FMI standard`, `FMI-{version} standard` | Three spellings of the standard (also `FMI 2.0` in `compiler.py`, `FMI-2.0` in `remoting.py`) |
-| 11 | `checker.py:382` | `Adding checker: {file}\|{name}` | `INFO` while loading; separator `\|` |
-| 12 | `gui/fmutool/__main__.py:180` | `" " * 80 + f"Version {version}"` | Alignment by spaces (depends on the widget width) |
-| 13 | `gui/fmutool/__main__.py:216` | `Modified version saved as {filename}.` | Path without quotes (CLI: `Output='…'`) |
-| 14 | `gui/fmutool/__main__.py:226,307` | `logger.error(f"{e}")` | Bare exception text; for an unexpected exception the type is lost (`KeyError: 'x'` shows `'x'`) |
-| 15 | `operations.py:416` | `Remove tag <…> from modelDescription.xml` (`DEBUG`) | No period (minor) |
-| 16 | `operations.py:439,456` | `Removed port vr=… is involved in dependencies tree.` | Missing article; `vr=` jargon |
+| 7 | `remoting.py:75,82` | `logger.critical("Cannot add remoting client: …")` then the operation goes on | `CRITICAL` but the FMU is saved without its client/server (D6: `OperationError`) |
+| 8 | `remoting.py:106` | `Remoting nb input port: 3` | Abbreviation, no period |
+| 9 | `checker.py:86` | `Expected FMI 2.0,3.0 versions.` | Odd list formatting; spelling of the standard (D4) |
+| 10 | `checker.py:110,112,201,203,431,688` | `FMI-3`, `FMI standard`, `FMI-{version} standard`, `FMI 3.0` | Several spellings of the standard (also `FMI-3.0` in `simulation.py:162`, `FMI-2.0` in `help.py:97`) |
+| 11 | `checker.py:1098` | `Adding checker: {file}\|{name}` | `INFO` while loading; separator `\|` |
+| 12 | `gui/fmutool/__main__.py:444` | `" " * 80 + f"Version {version}"` | Alignment by spaces (depends on the widget width) |
+| 13 | `gui/fmutool/__main__.py:528` | `Modified version saved as {filename}.` | Path without quotes |
+| 14 | `gui/fmutool/__main__.py:538,688` | `logger.error(f"{e}")` | Bare exception text; for an unexpected exception the type is lost (`KeyError: 'x'` shows `'x'`) |
+| 15 | `operations.py:449` | `Remove tag <…> from modelDescription.xml` (`DEBUG`) | No period (minor) |
+| 16 | `operations.py:472,489` | `Removed port '…' is involved in dependencies tree.`, `Removed port vr=… is involved in dependencies tree.` | Missing article; `vr=` jargon in the second form |
 
 Outside FMU Tool (only sampled): `split.py` (`Splitting...`, `FMU Extraction of '…'`, messages without period),
-`container/builder.py` and `assembly_io.py` (not reviewed yet).
+`container/builder.py` and `assembly_io.py` (not reviewed yet). The inventory of the rest of the package is made at
+the start of steps 4 and 5.
+
+### Spelling of the standard (22 November 2026)
+
+| Form | Package (`.py`) | User documentation | `CHANGELOG.md` |
+|---|---|---|---|
+| `FMI 2.0` / `FMI 3.0` | 121 | 62 | 37 |
+| `FMI-2` / `FMI-3` | 108 | 35 | 21 |
+| `FMI-2.0` / `FMI-3.0` | 18 | 16 | 2 |
+| `FMI 2` / `FMI 3` | 7 | 4 | 5 |
+
+Also precise versions: `FMI 2.0.1`, `2.0.2`, `2.0.4`, `2.0.5`, `FMI 3.0.1`, `3.0.2`, `FMI-3.0.1` (D7).
 
 ---
 
@@ -55,81 +71,113 @@ Outside FMU Tool (only sampled): `split.py` (`Splitting...`, `FMU Extraction of 
 
 1. A written convention for the messages (wording, levels, prefixes, names, FMI spelling), in the developer
    documentation.
-2. The messages of the chosen scope (D1) follow it.
-3. No change of the meaning of the levels for the tests and the exit codes: `ERROR` and above are still counted by
-   `ErrorCounter` (`-check`), and the CLI exit codes (`ExitCode`) do not change.
-4. Tests asserting on log texts are updated, not weakened.
+2. The messages of the whole package follow it (D1).
+3. One spelling of the standard, `FMI-2` / `FMI-3`, in the messages, the documentation and the code (D4).
+4. `ERROR` and above are still counted by `ErrorCounter` (`-check`), and the CLI exit codes (`ExitCode`) do not
+   change.
+5. Tests asserting on log texts are updated, not weakened.
 
 ---
 
-## 3. Proposed convention (to be validated, D2 to D5)
+## 3. Convention (D2, D3, D4)
 
 - **Sentence**: capital letter, ends with a period (also for messages ending with a name or a number).
 - **Names**: FMU file names, ports, model identifiers, paths, options between single quotes: `'bouncing.fmu'`.
 - **Paths**: relative to the FMU (`sources/model.c`) or to the working directory when possible.
 - **No level in the text**: no `INFO`, `ERROR:`, `FATAL ERROR:`, `READING`, `WRITING` tags; the handlers add the
   level.
-- **Levels**:
-  - `DEBUG`: details for developers (command lines, internal steps).
-  - `INFO`: progress and results.
-  - `WARNING`: the result is produced but may not be what the user expects.
-  - `ERROR`: the requested action failed, or (checkers) the FMU is not compliant.
-  - `CRITICAL`: not used, or only for an unexpected internal error (D3).
+- **Levels** (D3):
+  - `DEBUG`: optional message, to help understand the internal mechanisms.
+  - `INFO`: general messages, to follow the progress of the tool.
+  - `WARNING`: important message.
+  - `ERROR`: an error that is not fatal: a result is produced, but it may differ from the expected one. A checker
+    that finds a non-compliance logs an `ERROR`.
+  - `CRITICAL`: an error that prevents producing a result (e.g. a usage error of the CLI, a failed operation).
 - **Errors of an operation**: raised as `OperationError` (or `FMUError`), logged once by the caller (CLI / GUI /
-  MCP), never logged then ignored.
-- **FMI spelling**: one form for the standard (D4).
+  MCP) as `CRITICAL`, never logged then ignored.
+- **FMI spelling** (D4): `FMI-2` / `FMI-3`, also with a section: `FMI-3 §2.4.7`. Layered standards keep their
+  name (`FMI-LS-BUS`).
 
 ---
 
-## 4. Decisions (open)
+## 4. Decisions
 
-- **D1 — Scope**: (a) FMU Tool only (CLI `fmutool`, GUI FMU Tool, `operations.py`, `checker.py`, `remoting.py`,
-  `compiler.py`); (b) (a) plus `split.py`, `assembly.py`, `container/`, FMU Container Builder; (c) the whole
-  package, in several phases.
-- **D2 — Convention**: adopt §3 as is, or amend it.
-- **D3 — `CRITICAL`**: (a) never used (`logger.fatal` → `logger.error`); (b) kept for unexpected internal errors
-  only.
-- **D4 — FMI spelling**: (a) `FMI 2.0` / `FMI 3.0` (as in the standard documents); (b) `FMI-2` / `FMI-3` (as in
-  the checker and most of the CHANGELOG: 18 of 23, which also has `FMI 2.0`, `FMI-2.0`, `FMI-3.0`); (c) `FMI 2` / `FMI 3`.
+Taken on 22 November 2026:
+
+- **D1 — Scope**: (c) the whole package, in several phases (steps 2 to 5).
+- **D2 — Convention**: §3 adopted as is, with the levels of D3 and the spelling of D4.
+- **D3 — Levels**: as defined by the user (§3). `CRITICAL` is kept for the errors that prevent producing a result;
+  `ERROR` is a non-fatal error. Consequence: the GUIs log a failed `OperationError` as `CRITICAL`, like the CLI
+  (#4); the checkers keep `ERROR` for a non-compliance.
+- **D4 — FMI spelling**: (b) `FMI-2` / `FMI-3`, in the messages, the user documentation and the code (comments,
+  docstrings). The files copied from the standard (`resources/fmi*/`, FMI headers) are not changed.
 - **D5 — CLI reading/writing messages** (#3): (a) sentences: `Reading 'module.fmu'.`, `Writing
-  'module-modified.fmu'.`; (b) keep the upper-case tags as a CLI-specific layout (and document them).
-- **D6 — Remoting binaries missing** (#7): (a) `OperationError` (the FMU is not modified); (b) keep going with an
-  `ERROR` (counted, exit code unchanged).
+  'module-modified.fmu'.`.
+- **D6 — Remoting binaries missing** (#7): (a) `OperationError`: the FMU is not produced (logged `CRITICAL`).
+
+### To be decided at the start of the step concerned
+
+| # | Question | Step |
+|---|---|---|
+| D7 | Precise versions (`FMI 2.0.4`, `FMI 3.0.2`): `FMI-2.0.4`, kept as they are, or another form | 6 |
+| D8 | `CHANGELOG.md`: the entries of the released versions are rewritten with `FMI-2` / `FMI-3`, or only the new entries follow D4 | 7 |
+| D9 | The messages of the C runtime (`container/*.c`, `remoting/*.c`, logged through the FMI logger of the importer): in the scope of this plan or not | 5 |
 
 ---
 
 ## 5. Steps
 
+Each step ends with the tests of the project passing (`pytest`) and a prepared commit message.
+
 ### Step 1 — Convention
 
-- Write the convention (D2 to D4) in `docs/developer/` (new page `logging.md`, linked from `mkdocs.yml`).
+- Write the convention (§3) in `docs/developer/` (new page `logging.md`, linked from `mkdocs.yml`).
 
-Commit message: `Document the conventions of the log messages`
+Commit message: `Doc: the conventions of the log messages`
 
 ### Step 2 — FMU Tool: CLI and GUI
 
 - Items #1 to #5, #12 to #14 (D3, D5); update the tests of `tests/integration/test_cli*.py` and `tests/gui/`
   asserting on these texts.
 
-Commit message: `Align the log messages of fmutool and FMU Tool with the conventions`
+Commit message: `fmutool and FMU Tool: log messages aligned with the conventions`
 
 ### Step 3 — Operations, remoting, checkers
 
 - Items #6 to #11, #15, #16 (D4, D6); update `tests/unit/test_checker*.py`, `tests/unit/test_operations*.py` and the
   remoting test if needed.
 
-Commit message: `Align the log messages of the operations and the checkers with the conventions`
+Commit message: `Operations, remoting and checkers: log messages aligned with the conventions`
 
-### Step 4 — Other tools (according to D1)
+### Step 4 — Container tools
 
-- Inventory then alignment of `split.py`, `assembly.py`, `container/`, FMU Container Builder, assistant.
+- Inventory then alignment of `split.py`, `assembly.py`, `container/`, the CLI `fmucontainer` and `fmusplit`, FMU
+  Container Builder (`gui/fmucontainer/`).
 
-Commit message: `Align the log messages of the container tools with the conventions`
+Commit message: `Container tools: log messages aligned with the conventions`
 
-### Step 5 — User documentation
+### Step 5 — Rest of the package
+
+- Inventory then alignment of `ssp.py`, `assistant/` (MCP server, headless bridge, `fmutool-agent`),
+  `simulation.py`, `cli/datalog2pcap.py`, the launcher and the remaining modules; the C runtime according to D9.
+
+Commit message: `Log messages of the rest of the package aligned with the conventions`
+
+### Step 6 — FMI spelling in the code
+
+- `FMI-2` / `FMI-3` in the comments, docstrings and help texts of the package (and of the C runtime, D9), D7 for
+  the precise versions; not in the files copied from the standard.
+
+Commit message: `Code: FMI-2 and FMI-3 as the spelling of the standard`
+
+### Step 7 — User documentation
 
 - Update the examples of log output in `docs/user-guide/` (CLI usage of `fmutool`, `fmucontainer`, `fmusplit`,
-  GUI usage, checker), and `CHANGELOG.md` (🔵 **CHANGED**: wording of the messages; 🔴 **BREAKING** only if scripts
-  parsing the CLI output are known to rely on `READING` / `WRITING`).
+  GUI usage, checker), the spelling `FMI-2` / `FMI-3` in `docs/` (not `docs/local/`), `README.md` and the agent
+  skills.
+- `CHANGELOG.md` (D8): 🔵 **CHANGED**: wording and levels of the messages (`READING` / `WRITING` replaced by
+  sentences; failed operations logged as `CRITICAL` by the GUIs); 🔵 **CHANGED**: the remoting fails when its
+  binaries are missing.
+- `docs/local/ROADMAP.md`, then move this plan to `docs/local/done`.
 
-Commit message: `Document the new log messages`
+Commit message: `Doc: the new log messages, FMI-2 and FMI-3 as the spelling of the standard`
