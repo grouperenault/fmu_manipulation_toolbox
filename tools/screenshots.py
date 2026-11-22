@@ -478,8 +478,14 @@ def canvas_menu():
     settle()
     point = view.mapFromScene(position.sceneBoundingRect().center())
     from fmu_manipulation_toolbox.gui.fmucontainer.graph import view as view_module
-    with CapturedMenu(view_module) as captured:
-        view.contextMenuEvent(QContextMenuEvent(QContextMenuEvent.Reason.Mouse, point, view.mapToGlobal(point)))
+    # "Simulate (with FMPy)" is shown whether FMPy is installed or not: the image does not depend on the machine.
+    fmpy_available = view_module.FMPY_AVAILABLE
+    view_module.FMPY_AVAILABLE = True
+    try:
+        with CapturedMenu(view_module) as captured:
+            view.contextMenuEvent(QContextMenuEvent(QContextMenuEvent.Reason.Mouse, point, view.mapToGlobal(point)))
+    finally:
+        view_module.FMPY_AVAILABLE = fmpy_available
     menu = rendered_menu(captured.menu)
     at = view.viewport().mapTo(window, point)
     discard(window)
@@ -521,6 +527,36 @@ def waypoints():
     settle()
     discard(window)
     return cropped(window.grab(), rect_in(view, window))
+
+
+@shot("architecture-wire", "user-guide/fmucontainer/fmucontainer-architecture-wire.png")
+def architecture_wire():
+    import zipfile
+    # `bouncing.ssp` with its links replaced by an architecture wire (as `test_fmucontainer_architecture_wires.py`).
+    wire = ('<ssd:Connection startElement="bb_velocity" startConnector="aw.bb_position" endElement="bb_position" '
+            'endConnector="aw.bb_velocity" description="The **velocity** computed by `bb_velocity` drives the '
+            'position.">'
+            '<ssd:Annotations><ssc:Annotation type="fmu_manipulation_toolbox.architecture-wire">'
+            '<aw:Wire xmlns:aw="urn:fmu_manipulation_toolbox:architecture-wire:1" formatVersion="1" '
+            'orientation="directed"/></ssc:Annotation></ssd:Annotations></ssd:Connection>')
+    work = copy_data("containers/ssp/bouncing.ssp")
+    path = work / "containers/ssp/arch.ssp"
+    with zipfile.ZipFile(work / "containers/ssp/bouncing.ssp") as source, zipfile.ZipFile(path, "w") as target:
+        for name in source.namelist():
+            content = source.read(name)
+            if name == "SystemStructure.ssd":
+                ssd = content.decode("utf-8")
+                start, end = ssd.index("<ssd:Connections>"), ssd.index("</ssd:Connections>")
+                content = (ssd[:start] + "<ssd:Connections>" + wire + ssd[end:]).encode("utf-8")
+            target.writestr(name, content)
+    window = container_window()
+    window.import_assembly_file(str(path))
+    settle()
+    select(window, window._graph.scene.wires()[0])
+    window._graph.view.fit_all()
+    settle()
+    discard(window)
+    return window.grab()
 
 
 # ── Link Assistant ──────────────────────────────────────────────────────
