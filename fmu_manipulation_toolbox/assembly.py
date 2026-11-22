@@ -1046,6 +1046,25 @@ class Assembly:
             else:
                 raise AssemblyError(f"'SystemStructure.ssd' not found in '{self.fmu_directory / self.filename}'.")
 
+    def make_simulink(self, filename: str | Path) -> Path:
+        """Write the MATLAB script that builds the Simulink model of the assembly, with FMU blocks.
+
+        The script designates the FMUs in place, relative to its own folder: the script and the FMUs must keep their
+        relative places. Run it in MATLAB R2024a or newer: it builds the model and saves it as `<name>.slx` next to
+        it. See [SimulinkExporter][fmu_manipulation_toolbox.simulink.SimulinkExporter].
+
+        Args:
+            filename (str | Path): The `.m` script; its stem, a valid MATLAB identifier, names the model.
+
+        Returns:
+            Path: The script.
+
+        Raises:
+            AssemblyError: If the assembly cannot be exported to Simulink.
+        """
+        from .simulink import SimulinkExporter  # the Simulink export imports this module
+        return SimulinkExporter(self).export(filename)
+
     def make_fmu(self, dump_json=False, fmi_version=2, datalog=False, filename=None):
         """Build the FMU Container from the loaded assembly.
 

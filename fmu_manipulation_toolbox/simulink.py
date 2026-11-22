@@ -7,6 +7,7 @@ MATLAB. See `docs/local/simulink_export.md` (decisions 1 to 26).
 """
 import logging
 import math
+import os
 import re
 from dataclasses import dataclass, field
 from fractions import Fraction
@@ -207,8 +208,11 @@ class SimulinkExporter:
         self.sample_times: list[float] = []
 
     # --------------------------------------------------------------------------------------------- public API
-    def analyse(self) -> SimulinkModel:
+    def analyse(self, name: str | None = None) -> SimulinkModel:
         """Build the intermediate model of the assembly.
+
+        Args:
+            name (str | None): Name of the model, by default made from the name of the container.
 
         Raises:
             AssemblyError: If a node uses `ts_multiplier` (decision 7), if a step cannot be found (decision 13), if a
@@ -217,8 +221,43 @@ class SimulinkExporter:
         root = self.assembly.root
         assert root is not None     # checked by the constructor
         system = self._system(root)
-        return SimulinkModel(name=matlab_name(root.name), root=system, fixed_step=gcd_of_steps(self.sample_times),
+        return SimulinkModel(name=name or matlab_name(root.name), root=system,
+                             fixed_step=gcd_of_steps(self.sample_times),
                              start_time=root.start_time, stop_time=root.stop_time, fmu_files=self.fmu_files)
+
+    def export(self, filename: str | Path) -> Path:
+        """Write the MATLAB script that builds and saves the Simulink model (decisions 28, 30).
+
+        Args:
+            filename (str | Path): The `.m` script. Its stem names the MATLAB function and the model.
+
+        Returns:
+            Path: The script.
+
+        Raises:
+            AssemblyError: If the stem of `filename` is not a valid MATLAB identifier, or if the assembly cannot be
+                exported (see `analyse`).
+        """
+        filename = Path(filename)
+        if filename.suffix.lower() != ".m":
+            filename = filename.with_suffix(".m")
+        if not _identifier(filename.stem) or len(filename.stem) > MATLAB_NAME_LENGTH:
+            raise AssemblyError(f"'{filename.name}': the name of a MATLAB script must be a valid MATLAB identifier "
+                                f"(a letter, then letters, digits or '_', at most {MATLAB_NAME_LENGTH} characters).")
+        model = self.analyse(filename.stem)
+        directory = filename.resolve().parent
+        folders = []
+        for path in model.fmu_files.values():
+            try:
+                folder = Path(os.path.relpath(path.parent, directory)).as_posix()
+            except ValueError:      # another drive (Windows)
+                folder = str(path.parent)
+            if folder not in folders:
+                folders.append(folder)
+        assert self.assembly.root is not None
+        filename.write_text(MatlabWriter(model, folders, self.assembly.root.name).render(), encoding="utf-8")
+        logger.info(f"Simulink model '{model.name}': MATLAB script '{filename}' written.")
+        return filename
 
     # ------------------------------------------------------------------------------------------------- nodes
     def _check_options(self, node: AssemblyNode):
