@@ -445,7 +445,7 @@ while you define the links (see [Wire Details](gui-usage.md#architecture-wires))
     The Simulink export is at the alpha stage: check the generated model. Each export logs a warning.
 
 An assembly can also be exported as a **Simulink model** made of native FMU blocks (library *Simulink Extras / FMU
-Import*), by `fmucontainer -simulink FILE.m`, by **Save** as a *MATLAB script for Simulink, alpha* (`.m`) in the
+Import*), by `fmucontainer -simulink FILE.m`, by **Save** as a *MATLAB script for Simulink* (`.m`) in the
 [Container Builder](gui-usage.md#actions), or by `Assembly.make_simulink()`. The `.slx` format is not documented:
 the export writes a **MATLAB script** that builds the model when it is run in MATLAB R2024a or newer.
 

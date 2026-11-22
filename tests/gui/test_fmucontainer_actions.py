@@ -155,7 +155,7 @@ def test_exit_still_asks(window, monkeypatch):
     ("model", "SSP (*.ssp)", ("model.ssp", ".ssp")),               # none: the filter, its extension appended
     ("model.v2", "JSON (*.json)", ("model.v2.json", ".json")),
     ("model.csv", "FMU Container (*.fmu)", ("model.csv.fmu", ".fmu")),  # CSV is not a format of Save (B5)
-    ("model", "MATLAB script for Simulink, alpha (*.m)", ("model.m", ".m")),
+    ("model", "MATLAB script for Simulink (*.m)", ("model.m", ".m")),
 ])
 def test_the_format_follows_the_extension_or_the_filter(path, chosen, expected):
     assert MainWindow.save_target(path, chosen) == expected
@@ -195,7 +195,7 @@ def test_save_offers_fmu_container_first_then_the_last_format(window, monkeypatc
     window._on_save_clicked()
 
     assert first[0]["filter"].split(";;") == ["FMU Container (*.fmu)", "SSP (*.ssp)", "JSON (*.json)",
-                                              "MATLAB script for Simulink, alpha (*.m)"]
+                                              "MATLAB script for Simulink (*.m)"]
     assert first[0]["selected"] == "FMU Container (*.fmu)"
     assert first[0]["default_name"].endswith(".fmu")
     assert second[0]["selected"] == "SSP (*.ssp)"

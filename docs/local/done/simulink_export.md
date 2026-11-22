@@ -202,8 +202,8 @@ points of 2026-10-17, with the results of the importer comparison study
     layout.
 
 39. **Alpha stage** (from the user, at step 7): each export logs the warning "The Simulink export is at the alpha
-    stage: check the generated model."; the documentation (a warning box), the CHANGELOG, the help of `-simulink`
-    and the filter of **Save** ("MATLAB script for Simulink, alpha (*.m)") say so.
+    stage: check the generated model."; in the application, the alpha stage appears only there (not in the dialog
+    of **Save** nor in the help of `-simulink`); the documentation (a warning box) and the CHANGELOG say so.
 
 ### Closed open points (2026-10-17)
 

@@ -302,7 +302,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
 
     #: Formats of Save: filter of the dialog => extension. CSV is not offered (B5).
     SAVE_FORMATS = {"FMU Container (*.fmu)": ".fmu", "SSP (*.ssp)": ".ssp", "JSON (*.json)": ".json",
-                    "MATLAB script for Simulink, alpha (*.m)": ".m"}
+                    "MATLAB script for Simulink (*.m)": ".m"}
 
     @classmethod
     def save_target(cls, path: str, chosen_filter: str) -> tuple[str, str]:
