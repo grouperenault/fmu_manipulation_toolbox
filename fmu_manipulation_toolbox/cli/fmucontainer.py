@@ -40,8 +40,8 @@ def fmucontainer():
                         help="Dump an SSP file for each container (routing resolved, options in an annotation).")
 
     parser.add_argument("-simulink", action="store", dest="simulink", default=None, metavar="FILE.m",
-                        help="Also export the container as a MATLAB script building its Simulink model with FMU "
-                             "blocks (the script names the model, the FMUs stay in place).")
+                        help="Also export the container as a Simulink model: FILE.m names the model, the script "
+                             "build_FILE.m builds it with FMU blocks (the FMUs stay in place).")
 
     parser.add_argument("-fmi", action="store", dest="fmi_version", required=False, default="2",
                         help="Define version of FMI to be used for container interface."

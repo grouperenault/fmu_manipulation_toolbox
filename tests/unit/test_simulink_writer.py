@@ -58,7 +58,7 @@ def test_model_settings_and_path(ball):
     assembly = Assembly("bouncing.csv", fmu_directory=ball)
     assembly.root.start_time, assembly.root.stop_time = 0.0, 3.0
     script = _script(assembly, ["fmus", "../shared/fmus"])
-    assert script.startswith("function model = bouncing()\n")
+    assert script.startswith("function model = build_bouncing()\n")     # decision 32
     assert "addpath(fullfile(here, 'fmus'));" in script
     assert "addpath(fullfile(here, '..', 'shared', 'fmus'));" in script
     assert "'SolverType', 'Fixed-step', 'FixedStep', '0.001', 'EnableMultiTasking', 'off', 'BlockReduction', 'off', " \

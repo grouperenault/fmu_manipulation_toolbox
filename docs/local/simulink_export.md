@@ -1,6 +1,6 @@
 # Export of an assembly to Simulink
 
-**Status**: decisions 1 to 31 taken (22 November 2026), steps 1 to 5 done — **Branch**: `feature/simulink-export`,
+**Status**: decisions 1 to 32 taken (22 November 2026), steps 1 to 5 done — **Branch**: `feature/simulink-export`,
 rebased on `integration` (`0f8db8e`) — **Roadmap**: "Export to Simulink"
 
 ## Context
@@ -137,14 +137,21 @@ points of 2026-10-17, with the results of the importer comparison study
 29. **Entry points** (amends decision 2): CLI `fmucontainer -simulink FILE.m` (the FMU container is built too);
     in FMU Container Builder, a format of **Save** ("MATLAB script for Simulink (*.m)"), the extension decides; no
     check box.
-30. **Names** (amends decisions 15 and 16): MATLAB names a function after its file: the stem of the `.m` names the
-    function and the model, and must be a valid MATLAB identifier (an error otherwise).
+30. ~~**Names** (amends decisions 15 and 16): MATLAB names a function after its file: the stem of the `.m` names
+    the function and the model, and must be a valid MATLAB identifier (an error otherwise).~~ Replaced by decision
+    32.
 31. **Implicit links and ports in the CLI** (amends decision 5, taken at step 4): `fmucontainer -simulink` writes
     the script after the build: the implicit links and ports, made explicit by `make_fmu` (`implicit_resolved` of
     the node), are exported, so that the model matches the container; no warning then. The GUI, which exports
     without building, keeps decision 5. A parameter exposed as an input of the container, or a local variable
     exposed as an output (`auto_parameter`, `auto_local`), has no port on the FMU block: it is not exposed, with a
     warning. `-simulink` with several `-container` is a usage error (one script).
+
+32. **Name of the script** (replaces decision 30, after the first run on MATLAB): the model and the function cannot
+    have the same name ("the model name '…' is shadowing a name in the MATLAB workspace"). The name given (CLI
+    `-simulink model.m`, file chosen in **Save**) is the one of the model; the script is always `build_<model>.m`,
+    whose function `build_<model>()` builds and saves `<model>.slx` (`build_` is not repeated when the name already
+    starts with it). The name of the model must be a valid MATLAB identifier.
 
 ### Closed open points (2026-10-17)
 

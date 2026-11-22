@@ -1053,11 +1053,12 @@ class Assembly:
         """Write the MATLAB script that builds the Simulink model of the assembly, with FMU blocks.
 
         The script designates the FMUs in place, relative to its own folder: the script and the FMUs must keep their
-        relative places. Run it in MATLAB R2024a or newer: it builds the model and saves it as `<name>.slx` next to
-        it. See [SimulinkExporter][fmu_manipulation_toolbox.simulink.SimulinkExporter].
+        relative places. `model.m` writes `build_model.m`: run `build_model` in MATLAB R2024a or newer, it builds the
+        model and saves it as `model.slx` next to the script. See
+        [SimulinkExporter][fmu_manipulation_toolbox.simulink.SimulinkExporter].
 
         Args:
-            filename (str | Path): The `.m` script; its stem, a valid MATLAB identifier, names the model.
+            filename (str | Path): Names the model (a valid MATLAB identifier); the script is `build_<name>.m`.
 
         Returns:
             Path: The script.
