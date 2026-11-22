@@ -47,7 +47,7 @@ static inline bool config_clock_needs_interval(const container_clock_t *clock) {
 #define CONFIG_ALLOC(ptr, nb_elem)                                          \
     ptr = calloc(nb_elem, sizeof(*ptr));                                    \
     if (! ptr) {                                                            \
-        CONFIG_ERROR("Virtual memory exhaust. (" #ptr ")");                 \
+        CONFIG_ERROR("Virtual memory exhausted (" #ptr ").");               \
         return -2;                                                          \
     }
 
@@ -94,7 +94,7 @@ static int config_read_flags(container_t* container, file_t* file) {
     container_set_mode(container, sequential, mt);
 
     if (container->profiling)
-        LOGGER_WARNING("Container use PROFILING");
+        LOGGER_WARNING("Container uses the profiling.");
 
     return 0;
 }
@@ -116,11 +116,11 @@ static int config_read_time_step(container_t* container, file_t* file) {
      * paranoid check: time_step should be greater than tolerance to avoid rounding issues.
      */
     if (container->time_step < container->tolerance) {
-        CONFIG_ERROR("Invalid time_step value: %e", container->time_step);
+        CONFIG_ERROR("Invalid step size: %e.", container->time_step);
         return -1;
     }
 
-    LOGGER_DEBUG("Container time_step = %es", container->time_step);
+    LOGGER_DEBUG("Step size of the container: %es.", container->time_step);
 
     return 0;
 }
@@ -159,7 +159,7 @@ static int config_read_one_fmu(container_t *container, const char *dirname, file
     CONFIG_GETLINE;
     char *name = strdup(file->line);
     if (!name) {
-        CONFIG_ERROR("Virtual memory exhaust. (FMU name)");
+        CONFIG_ERROR("Virtual memory exhausted (FMU name).");
         return -1;
     }
     int fmi_version = 2;
@@ -215,7 +215,7 @@ static int config_read_one_fmu(container_t *container, const char *dirname, file
     }
     char *guid = strdup(file->line); /* saved because next file_get_line would overwrite file->line */
     if (!identifier || !guid) {
-        CONFIG_ERROR("Virtual memory exhaust. (FMU identifier)");
+        CONFIG_ERROR("Virtual memory exhausted (FMU identifier).");
         free(guid);
         free(identifier);
         free(name);
@@ -357,7 +357,7 @@ static int config_read_local(container_t* container, file_t* file) {
         CONFIG_ALLOC(container->strings.locals, container->strings.nb_locals);
         for (unsigned long i = 0; i < container->strings.nb_locals; i += 1) {
             if (fmu_string_copy(&container->strings.locals[i], "")) {
-                CONFIG_ERROR("Virtual memory exhaust. (local strings)");
+                CONFIG_ERROR("Virtual memory exhausted (local strings).");
                 return -2;
             }
         }
@@ -493,7 +493,7 @@ static int config_read_io(container_t* container, file_t* file) {
                                                                                                                      \
     CONFIG_GETLINE;                                                                                                  \
     if (sscanf(file->line, "%lu", &fmu_io-> type . causality .nb) < 1) {                                             \
-        CONFIG_ERROR("Cannot read FMU I/O number'" #type "' (" #causality ").");                                     \
+        CONFIG_ERROR("Cannot read the number of FMU I/O '" #type "' (" #causality ").");                                     \
         return -2;                                                                                                   \
     }                                                                                                                \
                                                                                                                      \
@@ -844,7 +844,7 @@ static int config_read_fmu_conversion(fmu_t *fmu, file_t* file) {
         fmu->conversions->entries[i].function = convert_function_get(file->line+offset);
         fmu->conversions->entries[i].to_real = convert_destination_real(file->line+offset);
         if (!fmu->conversions->entries[i].function) {
-            CONFIG_ERROR("Cannot configure conversion %luth entry from '%s'", i, file->line+offset);
+            CONFIG_ERROR("Cannot configure the conversion entry #%lu from '%s'.", i, file->line+offset);
             return -6;
         }
         if (convert_check_range(fmu->container, file->line+offset, fmu->conversions->entries[i].from,
@@ -976,7 +976,7 @@ static int config_read_clocks(container_t *container, file_t *file) {
                     &clock->declared_interval,
                     &clock->declared_shift,
                     &read) < 5){
-                    CONFIG_ERROR("Cannot interpret %luth clock table entries value #%lu", i, j);
+                    CONFIG_ERROR("Cannot interpret the value #%lu of the clock table entry #%lu.", j, i);
                     return -7;
                 }
                 offset += read;
@@ -1017,7 +1017,7 @@ int config_container(container_t* container, const char* resource_location) {
     file_t file;
     char dirname[FILE_SZ];
 
-    LOGGER_WARNING("FMUContainer '" VERSION_TAG "'");
+    LOGGER_WARNING("FMUContainer version '" VERSION_TAG "'.");
 
     /* The config parser registers ME FMUs into the solver as it reads them. */
     container->solver = solver_new(container);
@@ -1073,7 +1073,7 @@ int config_container(container_t* container, const char* resource_location) {
 
     if (config_read_io(container, &file)) {
         file_close(&file);
-        LOGGER_ERROR("Cannot read translation table.");
+        LOGGER_ERROR("Cannot read the translation table.");
         return -6;
     }
 
@@ -1090,7 +1090,7 @@ int config_container(container_t* container, const char* resource_location) {
     for (int i = 0; i < container->nb_fmu; i += 1) {
         if (config_read_fmu_io(&container->fmu[i], &file)) {
             file_close(&file);
-            LOGGER_ERROR("Cannot read I/O table for FMU#%d", i);
+            LOGGER_ERROR("Cannot read the I/O table of FMU #%d.", i);
             return -7;
         }
 
@@ -1142,11 +1142,11 @@ int config_container(container_t* container, const char* resource_location) {
         return -11;
     }
     if (container->clocks_list.nb_fmu)
-        LOGGER_DEBUG("Container will tick for clocks from %lu FMUs", container->clocks_list.nb_fmu);
+        LOGGER_DEBUG("Container ticks the clocks of %lu FMU(s).", container->clocks_list.nb_fmu);
 
     file_close(&file);
 
-    LOGGER_DEBUG("Instanciate embedded FMUs...");
+    LOGGER_DEBUG("Instantiating the embedded FMUs.");
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_t *fmu = &container->fmu[i];
         const bool is_me = (fmu->kind == FMU_KIND_ME);
@@ -1155,17 +1155,17 @@ int config_container(container_t* container, const char* resource_location) {
         const size_t len = strlen(container->instance_name) + 1 + strlen(fmu->name) + 1;
         fmu->instance_name = malloc(len);
         if (!fmu->instance_name) {
-            LOGGER_ERROR("Cannot allocate the instance name of FMU '%s'", fmu->name);
+            LOGGER_ERROR("Cannot allocate the instance name of FMU '%s'.", fmu->name);
             return -8;
         }
         snprintf(fmu->instance_name, len, "%s.%s", container->instance_name, fmu->name);
-        LOGGER_DEBUG("FMU#%d: Instanciate '%s' as '%s' for %s", i, fmu->name, fmu->instance_name,
+        LOGGER_DEBUG("FMU #%d: '%s' instantiated as '%s' in %s.", i, fmu->name, fmu->instance_name,
                      is_me ? "ModelExchange" : "CoSimulation");
 
         fmu_status_t status = is_me ? fmuInstantiateModelExchange(fmu, fmu->instance_name)
                                     : fmuInstantiateCoSimulation(fmu, fmu->instance_name);
         if (status != FMU_STATUS_OK) {
-            LOGGER_ERROR("Cannot Instantiate FMU '%s'", fmu->name);
+            LOGGER_ERROR("Cannot instantiate FMU '%s'.", fmu->name);
             return -8;
         }
     }
@@ -1181,7 +1181,7 @@ int config_container(container_t* container, const char* resource_location) {
     if (container->strings.nb_locals) {
         container->strings_tmp = malloc(container->strings.nb_locals * sizeof(*container->strings_tmp));
         if (!container->strings_tmp) {
-             LOGGER_ERROR("Cannot allocate buffer for strings.");
+             LOGGER_ERROR("Cannot allocate the buffer of the strings.");
              return -9;
         }
     } else
@@ -1191,7 +1191,7 @@ int config_container(container_t* container, const char* resource_location) {
         container->binaries_tmp = malloc(container->binaries.nb_locals * sizeof(*container->binaries_tmp));
         container->binaries_size_tmp = malloc(container->binaries.nb_locals * sizeof(*container->binaries_size_tmp));
         if (!container->binaries_tmp || !container->binaries_size_tmp) {
-            LOGGER_ERROR("Cannot allocate buffer for binaries.");
+            LOGGER_ERROR("Cannot allocate the buffer of the binaries.");
              return -9;
         }
     } else {

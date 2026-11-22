@@ -101,7 +101,7 @@ int file_open(file_t* file, const logger_t *logger, const char *dirname, const c
         return -1;
     }
 
-    LOGGER_DEBUG("Reading '%s'...", filename);
+    LOGGER_DEBUG("Reading '%s'.", filename);
 
     file->line_number = 0;
 
@@ -127,7 +127,7 @@ void file_error(file_t *file, unsigned int code_line_number, const char *message
     vsnprintf(message_buffer, sizeof(message_buffer), message, ap);
     va_end(ap);
 
-    LOGGER_ERROR("Configuration error(%u): line #%u: %s", code_line_number, file->line_number, message_buffer);
+    LOGGER_ERROR("Configuration error (%u): line #%u: %s", code_line_number, file->line_number, message_buffer);
 }
 
 

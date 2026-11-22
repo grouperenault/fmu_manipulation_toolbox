@@ -32,10 +32,10 @@ static fmu_status_t solver_integrate_rk4(solver_t *solver, double t, double h);
 
 solver_t *solver_new(container_t *container) {
     const logger_t *logger = &container->logger;
-    LOGGER_ERROR("Solver configure....");
+    LOGGER_ERROR("Solver configuration.");
     solver_t *solver = calloc(1, sizeof(*solver));
     if (!solver) {
-        LOGGER_ERROR("solver allocation failed.");
+        LOGGER_ERROR("Solver: allocation failed.");
         return NULL;
     }
     solver->container = container;
@@ -52,7 +52,7 @@ int solver_register_me(solver_t *solver, unsigned long fmu_idx, size_t nx, size_
     const logger_t *logger = &solver->container->logger;
     void *p = realloc(solver->me, (solver->nb_me + 1) * sizeof(*solver->me));
     if (!p) {
-        LOGGER_ERROR("solver_register_me: allocation failed.");
+        LOGGER_ERROR("Solver: allocation failed (solver_register_me).");
         return -1;
     }
     solver->me = p;
@@ -231,15 +231,15 @@ int solver_configure(solver_t *solver) {
     
     switch(solver_integrator) {
         case 0: /* Euler */
-            LOGGER_WARNING("Solver configured to use Euler integrator.");
+            LOGGER_WARNING("Solver configured to use the Euler integrator.");
             solver->integrator = solver_integrate_euler;
             break;
         case 1: /* RK4 */
-            LOGGER_WARNING("Solver configured to use RK4 integrator.");
+            LOGGER_WARNING("Solver configured to use the RK4 integrator.");
             solver->integrator = solver_integrate_rk4;
             break;
         default:
-            LOGGER_ERROR("Solver configured to use default Euler integrator. (%d)", solver_integrator);
+            LOGGER_ERROR("Solver: unknown integrator %d, the default Euler integrator is used.", solver_integrator);
             solver->integrator = solver_integrate_euler;
             break;
     }
@@ -282,7 +282,7 @@ int solver_configure(solver_t *solver) {
     return 0;
 
 fail:
-    LOGGER_ERROR("solver_build: allocation failed.");
+    LOGGER_ERROR("Solver: allocation failed (solver_build).");
     return -1;
 }
 

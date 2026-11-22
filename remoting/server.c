@@ -270,7 +270,7 @@ static fmi2Status update_values_from_client(server_t* server) {
         status = server->entries.fmi2SetReal(server->component, server->update.reals.vr,
             nb_reals, server->update.reals.value);
         if (status != fmi2OK) {
-            LOG_ERROR(server, "Cannot apply REALS buffer.");
+            LOG_ERROR(server, "Cannot apply the buffer of the reals.");
             return status;
         }
     }
@@ -288,7 +288,7 @@ static fmi2Status update_values_from_client(server_t* server) {
         status = server->entries.fmi2SetInteger(server->component, server->update.integers.vr,
             nb_integers, server->update.integers.value);
         if (status != fmi2OK) {
-            LOG_ERROR(server, "Cannot apply INTEGERS buffer.");
+            LOG_ERROR(server, "Cannot apply the buffer of the integers.");
             return status;
         }
     }
@@ -306,7 +306,7 @@ static fmi2Status update_values_from_client(server_t* server) {
         status = server->entries.fmi2SetBoolean(server->component, server->update.booleans.vr,
             nb_booleans, server->update.booleans.value);
         if (status != fmi2OK) {
-            LOG_ERROR(server, "Cannot apply BOOLEANS buffer.");
+            LOG_ERROR(server, "Cannot apply the buffer of the booleans.");
             return status;
         }
     }
@@ -321,21 +321,21 @@ static fmi2Status update_buffer_from_values(server_t* server) {
     status = server->entries.fmi2GetReal(server->component, server->data.reals.vr,
         server->communication->nb_reals, server->data.reals.value);
     if (status != fmi2OK) {
-        LOG_ERROR(server, "Cannot initialize REALS buffer.");
+        LOG_ERROR(server, "Cannot initialize the buffer of the reals.");
         return status;
     }
 
     status = server->entries.fmi2GetInteger(server->component, server->data.integers.vr,
         server->communication->nb_integers, server->data.integers.value);
     if (status != fmi2OK) {
-        LOG_ERROR(server, "Cannot initialize INTEGERS buffers.");
+        LOG_ERROR(server, "Cannot initialize the buffer of the integers.");
         return status;
     }
 
     status = server->entries.fmi2GetBoolean(server->component, server->data.booleans.vr,
         server->communication->nb_booleans, server->data.booleans.value);
     if (status != fmi2OK) {
-        LOG_ERROR(server, "Cannot initialize BOOLEANS buffers");
+        LOG_ERROR(server, "Cannot initialize the buffer of the booleans.");
         return status;
     }
 
@@ -348,7 +348,7 @@ static fmi2Status instanciate(server_t* server) {
     server->is_debug = fmi2False;
     server->library = library_load(server->library_filename);
     if (!server->library) {
-        LOG_ERROR(server, "Cannot open DLL object '%s'. ", server->library_filename);
+        LOG_ERROR(server, "Cannot open the library '%s'.", server->library_filename);
         return fmi2Error;
     }
     if (map_entries(&server->entries, server->library) < 0)
@@ -364,7 +364,7 @@ static fmi2Status instanciate(server_t* server) {
         fmi2False);
 
     if (!server->component) {
-        LOG_ERROR(server, "Cannot instanciate FMU.");
+        LOG_ERROR(server, "Cannot instantiate the FMU.");
         return fmi2Error;
     }
 
@@ -399,7 +399,7 @@ static fmi2Status do_step(server_t *server) {
         communicationStepSize,
         noSetFMUStatePriorToCurrentPoint);
     if (status != fmi2OK) {
-        LOG_ERROR(server, "Cannot doStep.");
+        LOG_ERROR(server, "Cannot do the step.");
         return status;
     }
 
@@ -408,7 +408,7 @@ static fmi2Status do_step(server_t *server) {
         status = server->entries.fmi2GetReal(server->component, server->data.reals.vr,
             server->communication->nb_reals, server->data.reals.value);
         if (status != fmi2OK) {
-            LOG_ERROR(server, "Cannot update REALS buffer.");
+            LOG_ERROR(server, "Cannot update the buffer of the reals.");
             return status;
         }
     }
@@ -417,7 +417,7 @@ static fmi2Status do_step(server_t *server) {
         status = server->entries.fmi2GetInteger(server->component, server->data.integers.vr,
             server->communication->nb_integers, server->data.integers.value);
         if (status != fmi2OK) {
-            LOG_ERROR(server, "Cannot update INTEGERS buffer.");
+            LOG_ERROR(server, "Cannot update the buffer of the integers.");
             return status;
         }
     }
@@ -426,7 +426,7 @@ static fmi2Status do_step(server_t *server) {
         status = server->entries.fmi2GetBoolean(server->component, server->data.booleans.vr,
             server->communication->nb_booleans, server->data.booleans.value);
         if (status != fmi2OK) {
-            LOG_ERROR(server, "Cannot update BOOLEANS buffer.");
+            LOG_ERROR(server, "Cannot update the buffer of the booleans.");
             return status;
         }
     }
@@ -540,7 +540,7 @@ int main(int argc, char* argv[]) {
          * Acknoledge the client side !
          */
         if (fmu->status < 0) {
-            LOG_ERROR(server, "Function '%d' unreachable.", function);
+            LOG_ERROR(server, "Function %d is unreachable.", function);
             fmu->status = fmi2Error;
         }
         SERVER_LOG("RPC: %d | processed.\n", function);

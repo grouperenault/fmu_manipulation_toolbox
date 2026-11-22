@@ -1,6 +1,6 @@
 # Plan: consistent log messages
 
-**Created**: 13 October 2026 — **Status**: steps 1 to 4 and 5a done; decisions D1 to D6 taken (22 November 2026); D7 to D9 to be decided at
+**Created**: 13 October 2026 — **Status**: steps 1 to 5 done; decisions D1 to D6 taken (22 November 2026); D7 to D9 to be decided at
 the start of their step — **Branch**: `feature/log-consistency`, from `integration` (`e8b1128`) — **Roadmap**: "log
 consistency" — **Origin**: review of the logs of FMU Tool during `compile_sources.md` (decision D16)
 
@@ -221,7 +221,15 @@ messages aligned with the conventions` (4b)
   `cli/datalog2pcap.py` (its banner gave the name of FMUContainer), `cli/fmutool_mcp.py`, `cli/fmutool_agent.py`,
   `ls.py` (`FMI-LS-XCP`, `FMI-LS-REF`). Two misses of step 2 in `cli/fmutool.py`: the banner, and an `OSError` when
   the output is written (`Cannot write the output: …`).
-- 5b: C runtime of the container and of the remoting (D9).
+- 5b done: C runtime of the container (`container/*.c`, also the messages of `CONFIG_ERROR`) and of the remoting
+  (`remoting/*.c`): sentences, names between quotes, `valueReference` / kind of variable instead of `vr=`, no
+  `[DEBUG]` tag nor `|`, modes in lower case (`Container uses the parallel mode with several threads…`). Levels
+  unchanged (D9). The reference logs `tests/data/ls-bus/REF-log-*.txt` generated again (same lines, same numbers,
+  only the wording changes). Left to `remoting_robustness.md`: the format `%lu` of the value references (point 16) and
+  the categories `[SERVER]` / `SERVER` / `SERVER]` (point 19). The debug traces `printf` (`[SHM]`, `[SERVER]`,
+  `[CLIENT]`, compiled on demand) are not changed.
+- To update at step 7: `docs/user-guide/fmucontainer/multi-threading.md` (messages `Container use PARALLEL mode…`),
+  `docs/user-guide/fmucontainer/ai-assistant.md` (`[AI] …`).
 
 Commit messages: `Log messages of the rest of the package aligned with the conventions` (5a), `Container and
 remoting runtimes: log messages aligned with the conventions` (5b)

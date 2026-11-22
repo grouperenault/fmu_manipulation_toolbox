@@ -71,6 +71,18 @@ The records of level `ERROR` and above are counted by `ErrorCounter` (`cli/utils
 - The same spelling is used in the comments, the docstrings and the documentation. The files copied from the
   standard (`resources/fmi*/`, FMI headers) are not changed.
 
+## Native runtimes
+
+The messages of the runtimes of the container (`container/*.c`, `LOGGER_DEBUG`, `LOGGER_WARNING`, `LOGGER_ERROR`)
+and of the remoting (`remoting/*.c`, `LOG_DEBUG`, `LOG_WARNING`, `LOG_ERROR`) follow the same wording rules. They
+reach the user through the logger of the importer, and their level is the FMI status of the message (`fmi2OK` /
+`fmi3OK` for the debug messages, sent only when the debug logging is on, `Warning`, `Error`): the levels of this page
+do not apply to them. A value reference is written as a number after the kind of the variable: `the clock 3`,
+`the real 12`.
+
+The reference logs of the simulations (`tests/data/**/REF-log-*.txt`, compared by `assert_simulation_log()`) contain
+these messages: they are generated again when a message changes.
+
 ## Tests
 
 A test that asserts on the text of a message is updated with the message, and keeps checking its level (with

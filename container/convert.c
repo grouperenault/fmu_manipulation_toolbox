@@ -33,12 +33,12 @@ convert_table_t *convert_new(const logger_t *logger, unsigned long nb) {
             table->nb = nb;
             table->entries = malloc(nb * sizeof(*table->entries));
             if (! table->entries) {
-                LOGGER_ERROR("Cannot allocate conversion table for %lu entries.", nb);
+                LOGGER_ERROR("Cannot allocate the conversion table for %lu entries.", nb);
                 free(table);
                 table = NULL;
             }
         } else
-            LOGGER_ERROR("Cannot allocate conversion table");
+            LOGGER_ERROR("Cannot allocate the conversion table.");
     } 
     return table;
 }
