@@ -368,8 +368,9 @@ class Manipulation:
 
         broken = self.broken_references(md, variables, removed)
         if broken:
+            more = f" (and {len(broken) - 10} more)" if len(broken) > 10 else ""
             raise OperationError("The operation would remove variables that are still referenced: " +
-                                 "; ".join(broken[:10]) + (" ..." if len(broken) > 10 else ""))
+                                 "; ".join(broken[:10]) + more + ".")
 
         removed_ids = {id(element) for element in removed}
         kept_names = [variable.get("name") for variable in variables if id(variable) not in removed_ids]
@@ -384,7 +385,7 @@ class Manipulation:
         if duplicates:
             raise OperationError("The operation would give the same name to several variables: " +
                                  ", ".join(f"'{name}'" for name in duplicates[:10]) +
-                                 (" ..." if len(duplicates) > 10 else ""))
+                                 (f" (and {len(duplicates) - 10} more)" if len(duplicates) > 10 else "") + ".")
 
     @staticmethod
     def broken_references(md: ModelDescription, variables: list[ET.Element],

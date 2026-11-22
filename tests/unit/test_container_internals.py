@@ -254,7 +254,7 @@ def test_automatic_wiring_messages(bouncing, caplog):
     """The automatic wiring tells each port it links or exposes, a sentence per port (docs/developer/logging.md)."""
     with caplog.at_level(logging.INFO, logger="fmu_manipulation_toolbox"):
         bouncing.add_implicit_rule(auto_input=True, auto_output=True, auto_link=True)
-    assert "Auto link: port 'bb_velocity.fmu/velocity' to port 'bb_position.fmu/velocity'." in caplog.messages
+    assert "Auto link: 'bb_velocity.fmu/velocity' → 'bb_position.fmu/velocity'." in caplog.messages
     assert "Auto output: port 'bb_position.fmu/position1' exposed as 'position1'." in caplog.messages
     assert any(message.startswith("Automatic wiring: ") and message.endswith(" links.") for message in caplog.messages)
     assert not any(message.startswith("AUTO") for message in caplog.messages)
@@ -370,7 +370,7 @@ def test_missing_fmu_is_an_error(bouncing):
 def test_lossy_link_is_accepted_with_a_warning(bouncing, caplog):
     with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
         bouncing.add_link("bb_velocity.fmu", "velocity", "bb_velocity.fmu", "reset")
-    assert "Lossy conversion 'F64_B' applied from Port 'bb_velocity.fmu/velocity' to port " in caplog.text
+    assert "Lossy conversion 'F64_B': 'bb_velocity.fmu/velocity' → 'bb_velocity.fmu/reset'." in caplog.text
 
 
 # --------------------------------------------------------------------------- #

@@ -1022,7 +1022,7 @@ int config_container(container_t* container, const char* resource_location) {
     /* The config parser registers ME FMUs into the solver as it reads them. */
     container->solver = solver_new(container);
     if (!container->solver) {
-        LOGGER_ERROR("Cannot allocate ME solver.");
+        LOGGER_ERROR("Cannot allocate the ME solver.");
         return -1;
     }
 
@@ -1067,7 +1067,7 @@ int config_container(container_t* container, const char* resource_location) {
 
     if (config_read_local(container, &file)) {
         file_close(&file);
-        LOGGER_ERROR("Cannot allocate local variables.");
+        LOGGER_ERROR("Cannot allocate the local variables.");
         return -5;
     }
 
@@ -1077,9 +1077,10 @@ int config_container(container_t* container, const char* resource_location) {
         return -6;
     }
 
-#define LOG_IO(variable, fmi_type, c_type)                                             \
-    if ((container-> variable .nb_locals > 0) || (container-> variable .nb_ports > 0)) \
-        LOGGER_DEBUG("%s: %lu local variable(s) and %lu port(s).", #variable, container-> variable .nb_locals, container-> variable .nb_ports);
+#define LOG_IO(variable, fmi_type, c_type)                                                                        \
+    if ((container-> variable .nb_locals > 0) || (container-> variable .nb_ports > 0))                            \
+        LOGGER_DEBUG("%-10s: %lu local variable(s) and %lu port(s).", #variable, container-> variable .nb_locals, \
+                     container-> variable .nb_ports);
 
     FOR_ALL_NUMERIC_TYPES(LOG_IO)
     LOG_IO(strings, String, char *)
@@ -1094,20 +1095,22 @@ int config_container(container_t* container, const char* resource_location) {
             return -7;
         }
 
-#define LOG_IO(orientation, type)                                                                \
-    if ((container->fmu[i].fmu_io. type . orientation .nb > 0) ||                                \
-        (container->fmu[i].fmu_io.clocked_ ## type .nb_ ## orientation > 0))                     \
-        LOGGER_DEBUG("FMU #%d: %s " #orientation "puts: %lu port(s) and %lu clocked.", i, #type, \
-                     container->fmu[i].fmu_io. type . orientation .nb,                           \
+#define LOG_IO(orientation, type)                                                                         \
+    if ((container->fmu[i].fmu_io. type . orientation .nb > 0) ||                                         \
+        (container->fmu[i].fmu_io.clocked_ ## type .nb_ ## orientation > 0))                              \
+        LOGGER_DEBUG("FMU #%-2d %-10s %-7s: %lu port(s) and %lu clocked.", i, #type, #orientation "puts", \
+                     container->fmu[i].fmu_io. type . orientation .nb,                                    \
                      container->fmu[i].fmu_io.clocked_ ## type .nb_ ## orientation);
 
-#define LOG_IO_CLASSIC(orientation, type)                     \
-    if (container->fmu[i].fmu_io. type . orientation .nb > 0) \
-        LOGGER_DEBUG("FMU #%d: %s " #orientation "puts: %lu port(s).", i, #type, container->fmu[i].fmu_io. type . orientation .nb);
+#define LOG_IO_CLASSIC(orientation, type)                                                 \
+    if (container->fmu[i].fmu_io. type . orientation .nb > 0)                             \
+        LOGGER_DEBUG("FMU #%-2d %-10s %-7s: %lu port(s).", i, #type, #orientation "puts", \
+                     container->fmu[i].fmu_io. type . orientation .nb);
         
-#define LOG_START(variable, fmi_type, c_type)                \
-    if (container->fmu[i].fmu_io.start_ ## variable .nb > 0) \
-        LOGGER_DEBUG("FMU #%d: %s start values: %lu.", i, #variable, container->fmu[i].fmu_io.start_ ## variable .nb);
+#define LOG_START(variable, fmi_type, c_type)                                      \
+    if (container->fmu[i].fmu_io.start_ ## variable .nb > 0)                       \
+        LOGGER_DEBUG("FMU #%-2d %-10s %-7s: %lu value(s).", i, #variable, "start", \
+                     container->fmu[i].fmu_io.start_ ## variable .nb);
 
 #define LOG_IO_IN(variable, fmi_type, c_type) LOG_IO(in, variable)
 #define LOG_IO_OUT(variable, fmi_type, c_type) LOG_IO(out, variable)
@@ -1208,7 +1211,7 @@ int config_container(container_t* container, const char* resource_location) {
     if (container->nb_fmu > 0) {
         container->cs_fmu = malloc((size_t)container->nb_fmu * sizeof(*container->cs_fmu));
         if (!container->cs_fmu) {
-            LOGGER_ERROR("Cannot allocate CS working set.");
+            LOGGER_ERROR("Cannot allocate the CS working set.");
             return -9;
         }
         for (int i = 0; i < container->nb_fmu; i += 1) {

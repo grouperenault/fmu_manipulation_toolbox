@@ -60,7 +60,7 @@ class DatalogConverter:
                         if match:
                             bus_types[f"{Path(fmu_name).stem.lower()}.{port.get('name')}"] = match.group(1).lower()
         except (OSError, KeyError, ValueError, IndexError, zipfile.BadZipFile, ModelDescriptionError) as error:
-            raise DatalogError(f"Cannot read the container '{self.fmu_filename}': {error}") from error
+            raise DatalogError(f"Cannot read the container '{self.fmu_filename}': {error}.") from error
         return bus_types
 
     @staticmethod
@@ -152,7 +152,7 @@ class DatalogConverter:
 
 def datalog2pcap():
     logger.info(f"datalog2pcap version {version}.")
-    logger.warning("Datalog2PCAP is still experimental.")
+    logger.warning("datalog2pcap is still experimental.")
 
     parser = argparse.ArgumentParser(prog="datalog2pcap",
                                      description="Convert the LS-BUS datalog of a container to a PCAPNG file.",

@@ -216,8 +216,8 @@ class Link:
             conversion = self.get_conversion(cport_to)
             if conversion:
                 if is_lossy(conversion):
-                    logger.warning(f"Lossy conversion '{conversion.lstrip('_')}' applied "
-                                   f"from {self.cport_from} to port {cport_to.label}.")
+                    logger.warning(f"Lossy conversion '{conversion.lstrip('_')}': "
+                                   f"{self.cport_from.label} → {cport_to.label}.")
                 self.cport_to_list.append(cport_to)
                 self.conversions[cport_to.port.type_name] = conversion
             else:

@@ -264,7 +264,7 @@ class SSDParser:
             if 'source' not in attrs:
                 # Kept although it changes the container (D13 of the SSP beta plan): MIC modeler writes components
                 # without source when the FMU of an instance is not available.
-                logger.warning(f"Component '{attrs['name']}' has no source FMU. It is ignored, "
+                logger.warning(f"Component '{attrs['name']}' has no source FMU: it is ignored, "
                                f"with its connections.")
                 self.ignored_components.add(attrs['name'])
                 self._elements[id(self.node_stack[-1])][attrs['name']] = ("ignored", None)
@@ -382,8 +382,8 @@ class SSDParser:
               element.tag == f"{{{self.ARCHITECTURE_WIRE_NAMESPACE}}}Wire"):
             orientation = element.get("orientation", "undirected")
             if orientation not in ArchitectureWire.ORIENTATIONS:
-                logger.warning(f"Architecture wire with unknown orientation '{orientation}'. "
-                               f"It is read as 'undirected'.")
+                logger.warning(f"Architecture wire with unknown orientation '{orientation}': "
+                               f"it is read as 'undirected'.")
                 orientation = "undirected"
             self._wire_orientation = orientation
         elif (event == "start" and local_name in self.TRANSFORMATIONS and
@@ -399,7 +399,7 @@ class SSDParser:
     def _add_connection(self, attrs: dict[str, str]):
         """Turn a connection into a link, an exposed input or an exposed output."""
         if attrs.get('startElement') in self.ignored_components or attrs.get('endElement') in self.ignored_components:
-            logger.debug(f"Connection '{attrs.get('startElement')}/{attrs['startConnector']}' -> "
+            logger.debug(f"Connection '{attrs.get('startElement')}/{attrs['startConnector']}' → "
                          f"'{attrs.get('endElement')}/{attrs['endConnector']}' ignored: it involves an ignored "
                          f"component.")
             return
@@ -751,11 +751,11 @@ class SSDParser:
         """Record an architecture wire between two components of the current system."""
         start, end = attrs.get('startElement'), attrs.get('endElement')
         if start is None or end is None:
-            logger.warning(f"Architecture wire on connector '{attrs['startConnector']}' -> "
+            logger.warning(f"Architecture wire on connector '{attrs['startConnector']}' → "
                            f"'{attrs['endConnector']}' is ignored: it must join two components.")
             return
         if start in self.ignored_components or end in self.ignored_components:
-            logger.debug(f"Architecture wire '{start}' -> '{end}' ignored: it involves an ignored component.")
+            logger.debug(f"Architecture wire '{start}' → '{end}' ignored: it involves an ignored component.")
             return
         self.node_stack[-1].add_architecture_wire(self.fmu_filenames[start], self.fmu_filenames[end],
                                                   orientation, attrs.get('description'))

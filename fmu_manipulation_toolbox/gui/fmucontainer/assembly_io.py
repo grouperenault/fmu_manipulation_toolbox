@@ -635,7 +635,7 @@ class AssemblyIOMixin:
                 # same way.
                 if cfg_node and fmu_to_name == ConfigurationNode.TITLE:
                     if not cfg_node.port_active(port_to):
-                        logger.debug(f"Inactive configuration link '{fmu_from_name}/{port_from}' -> '{port_to}' "
+                        logger.debug(f"Inactive configuration link '{fmu_from_name}/{port_from}' → '{port_to}' "
                                      f"skipped.")
                         continue
                     if cfg_node.is_reset_port(port_to):
@@ -648,7 +648,7 @@ class AssemblyIOMixin:
                     fmu_from_path = path_by_name[fmu_from_name]
                 elif cfg_node and fmu_from_name == ConfigurationNode.TITLE:
                     if not cfg_node.port_active(port_from):
-                        logger.debug(f"Inactive configuration link '{port_from}' -> '{fmu_to_name}/{port_to}' skipped.")
+                        logger.debug(f"Inactive configuration link '{port_from}' → '{fmu_to_name}/{port_to}' skipped.")
                         continue
                     if cfg_node.is_reset_port(port_from):
                         fmu_from_name = ConfigurationNode.fmu_name_from_reset_port(port_from)
@@ -662,7 +662,7 @@ class AssemblyIOMixin:
                     fmu_from_path = path_by_name[fmu_from_name]
                     fmu_to_path = path_by_name[fmu_to_name]
 
-                logger.info(f"Link: '{Path(fmu_from_path).name}/{port_from}' to '{Path(fmu_to_path).name}/{port_to}'.")
+                logger.info(f"Link: '{Path(fmu_from_path).name}/{port_from}' → '{Path(fmu_to_path).name}/{port_to}'.")
                 links_list.append((fmu_from_path, port_from, fmu_to_path, port_to))
 
             # Terminal mappings are treated as regular links (terminals behave as ports)
@@ -671,7 +671,7 @@ class AssemblyIOMixin:
                     fmu_a_name, terminal_a, fmu_b_name, terminal_b = tm
                     fmu_a_path = path_by_name[fmu_a_name]
                     fmu_b_path = path_by_name[fmu_b_name]
-                    logger.info(f"Terminal link: '{fmu_a_name}/{terminal_a}' to '{fmu_b_name}/{terminal_b}'.")
+                    logger.info(f"Terminal link: '{fmu_a_name}/{terminal_a}' ↔ '{fmu_b_name}/{terminal_b}'.")
                     links_list.append((fmu_a_path, terminal_a, fmu_b_path, terminal_b))
 
         if assembly.root:

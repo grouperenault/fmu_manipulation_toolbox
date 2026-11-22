@@ -741,7 +741,7 @@ void fmu_unload(fmu_t *fmu) {
     LOGGER_DEBUG("Unloading FMU '%s'.", fmu->name);
     /* and finally unload the library */
     if (library_unload(fmu->library)) {
-        LOGGER_ERROR("Cannot unload library for FMU '%s'.", fmu->name);
+        LOGGER_ERROR("Cannot unload the library of FMU '%s'.", fmu->name);
     }
     free(fmu->guid);
     free(fmu->name);

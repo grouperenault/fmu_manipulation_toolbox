@@ -517,11 +517,11 @@ class ModelDescription:
     def _size_of(section: str, vr: str | None, ports: dict[str, "ModelVariable"], label: str) -> int:
         """Number of elements of the FMI-3 variable `vr` (1 if it cannot be resolved)."""
         if vr is None:
-            logger.warning(f"'{label}': <{section}> without valueReference. Assuming 1 element.")
+            logger.warning(f"'{label}': <{section}> has no valueReference: 1 element assumed.")
             return 1
         port = ports.get(vr)
         if port is None:
-            logger.warning(f"'{label}': <{section}> refers to unknown variable vr={vr}. Assuming 1 element.")
+            logger.warning(f"'{label}': <{section}> refers to the unknown valueReference {vr}: 1 element assumed.")
             return 1
 
         size = 1
@@ -534,8 +534,8 @@ class ModelDescription:
             try:
                 size *= int(parameter.get("start", "") if parameter is not None else "")
             except (TypeError, ValueError):
-                logger.warning(f"'{label}': <{section}> vr={vr} has a dimension given by structuralParameter "
-                               f"vr={value} whose value cannot be resolved. Assuming 1 element.")
+                logger.warning(f"'{label}': <{section}> {vr}: the value of the structural parameter {value} that "
+                               f"gives its dimension cannot be resolved: 1 element assumed.")
                 return 1
         return size
 

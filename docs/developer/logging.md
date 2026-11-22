@@ -23,16 +23,21 @@ A message must therefore read well on its own, without a prefix of its own, what
 - **Paths**: relative to the FMU (`sources/model.c`) or to the working directory when possible.
 - **No level in the text**: no `INFO`, `ERROR:`, `FATAL ERROR:`, nor tags such as `READING` or `WRITING`. The
   handlers add the level.
-- **No layout in the text**: no alignment by spaces, no ad-hoc indentation or bullets. A list of items is one
-  message per item, or one sentence. The only exception is a report printed as a table of text, such as the one of
-  **Summary** (`OperationSummary`, lines starting with `| `): it keeps its layout. The GUI of FMU Tool recognises its
-  line `| temporary directory = …` to show the directory as a link.
+- **Layout only when it helps the reader**: messages that form a table (one line per type, per FMU...) may align
+  their columns with spaces, e.g. `%-10s` in the runtime; a report printed as a table of text, such as the one of
+  **Summary** (`OperationSummary`, lines starting with `| `), keeps its layout. The GUI of FMU Tool recognises its
+  line `| temporary directory = …` to show the directory as a link. No other ad-hoc indentation or bullets: a list
+  of items is one message per item, or one sentence.
+- **UTF-8 when it makes the message simpler**: an arrow for a link, `Auto link: 'a.fmu/y' → 'b.fmu/u'.`, `↔` for a
+  connection of terminals. In the Python package only: the messages of the native runtimes stay in ASCII (`->`),
+  since the logger of the importer may not decode UTF-8.
 
 | Not | But |
 |---|---|
 | `READING Input='bouncing.fmu'` | `Reading 'bouncing.fmu'.` |
 | `FATAL ERROR: Port x not found` | `Port 'x' not found.` (level `CRITICAL`) |
-| `Remoting nb input port: 3` | `Remoting: 3 input ports.` |
+| `Remoting nb input port: 3` | `Remoting: 3 input port(s).` |
+| `AUTO LINK: Port a.fmu/y -> Port b.fmu/u` | `Auto link: 'a.fmu/y' → 'b.fmu/u'.` |
 | `Modified version saved as out.fmu.` | `Modified version saved as 'out.fmu'.` |
 
 ## Levels
@@ -76,10 +81,16 @@ The records of level `ERROR` and above are counted by `ErrorCounter` (`cli/utils
 
 The messages of the runtimes of the container (`container/*.c`, `LOGGER_DEBUG`, `LOGGER_WARNING`, `LOGGER_ERROR`)
 and of the remoting (`remoting/*.c`, `LOG_DEBUG`, `LOG_WARNING`, `LOG_ERROR`) follow the same wording rules. They
-reach the user through the logger of the importer, and their level is the FMI status of the message (`fmi2OK` /
-`fmi3OK` for the debug messages, sent only when the debug logging is on, `Warning`, `Error`): the levels of this page
-do not apply to them. A value reference is written as a number after the kind of the variable: `the clock 3`,
-`the real 12`.
+reach the user through the logger of the importer, and their level is the FMI status of the message: the levels of
+this page do not apply to them.
+
+FMI has no "info" status. `LOGGER_DEBUG` sends `fmi2OK` / `fmi3OK` (category `Info`) only when the debug logging is
+on; `LOGGER_WARNING` and `LOGGER_ERROR` are always sent (category `Error`). A message that must always reach the user
+without being a problem (version of the runtime, mode of the container, `Solver configuration.`...) is therefore
+sent as a warning or an error: in the runtime, the level tells whether a message is always shown, not only its
+severity.
+
+A value reference is written as a number after the kind of the variable: `the clock 3`, `the real 12`.
 
 The reference logs of the simulations (`tests/data/**/REF-log-*.txt`, compared by `assert_simulation_log()`) contain
 these messages: they are generated again when a message changes.

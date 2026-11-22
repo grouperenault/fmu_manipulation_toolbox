@@ -83,7 +83,7 @@ class OperationGenericCheck(OperationAbstract):
                 element. Must contain `fmiVersion`.
         """
         if attrs['fmiVersion'] not in self.SUPPORTED_FMI_VERSIONS:
-            logger.error(f"Expected FMI {','.join(self.SUPPORTED_FMI_VERSIONS)} versions.")
+            logger.error(f"Expected FMI-2 or FMI-3, not fmiVersion '{attrs['fmiVersion']}'.")
             return
 
         fmi_name = f"fmi{attrs['fmiVersion'][0]}"
@@ -1081,7 +1081,7 @@ def add_from_file(checker_filename: str):
     """
     spec = importlib.util.spec_from_file_location(checker_filename, checker_filename)
     if not spec:
-        logger.error(f"Cannot load '{checker_filename}'. Is this a python file?")
+        logger.error(f"Cannot load '{checker_filename}'. Is this a Python file?")
         return
     try:
         checker_module = importlib.util.module_from_spec(spec)

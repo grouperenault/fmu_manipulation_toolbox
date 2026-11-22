@@ -897,7 +897,7 @@ class Assembly:
             try:
                 function(*line)
             except TypeError:
-                raise AssemblyError(f"JSON: '{keyword}' value does not contain right number of fields: "
+                raise AssemblyError(f"JSON: '{keyword}' value does not contain the right number of fields: "
                                     f"{line}.") from None
 
     def write_ssp(self, filename: str | Path, ssp_version: str = "2.0") -> Path:

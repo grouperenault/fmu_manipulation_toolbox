@@ -361,7 +361,7 @@ class QtAssemblyBridge:
             wire_detail._load_from_wire()
         self._mark_dirty()
         link = f"{node_from.name}/{from_port} -> {node_to.name}/{to_port}"
-        logger.info(f"AI Assistant: port '{node_from.name}/{from_port}' linked to port '{node_to.name}/{to_port}'.")
+        logger.info(f"AI Assistant: link '{node_from.name}/{from_port}' → '{node_to.name}/{to_port}' added.")
         return link
 
     def remove_link(self, from_fmu: str, from_port: str, to_fmu: str, to_port: str) -> str:
@@ -401,8 +401,7 @@ class QtAssemblyBridge:
 
         self._mark_dirty()
         link = f"{node_from.name}/{from_port} -> {node_to.name}/{to_port}"
-        logger.info(f"AI Assistant: port '{node_from.name}/{from_port}' unlinked from port "
-                    f"'{node_to.name}/{to_port}'.")
+        logger.info(f"AI Assistant: link '{node_from.name}/{from_port}' → '{node_to.name}/{to_port}' removed.")
         return link
 
     def expose_input(self, fmu: str, port: str) -> str:

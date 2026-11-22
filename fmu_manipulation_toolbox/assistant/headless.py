@@ -363,7 +363,7 @@ class HeadlessAssemblyBridge:
         if link not in self._links:
             self._links.append(link)
         description = f"{from_fmu}/{from_port} -> {to_fmu}/{to_port}"
-        logger.info(f"AI Assistant: port '{from_fmu}/{from_port}' linked to port '{to_fmu}/{to_port}'.")
+        logger.info(f"AI Assistant: link '{from_fmu}/{from_port}' → '{to_fmu}/{to_port}' added.")
         return description
 
     def remove_link(self, from_fmu: str, from_port: str, to_fmu: str, to_port: str) -> str:
@@ -375,7 +375,7 @@ class HeadlessAssemblyBridge:
             )
         self._links.remove(link)
         description = f"{from_fmu}/{from_port} -> {to_fmu}/{to_port}"
-        logger.info(f"AI Assistant: port '{from_fmu}/{from_port}' unlinked from port '{to_fmu}/{to_port}'.")
+        logger.info(f"AI Assistant: link '{from_fmu}/{from_port}' → '{to_fmu}/{to_port}' removed.")
         return description
 
     def expose_input(self, fmu: str, port: str) -> str:

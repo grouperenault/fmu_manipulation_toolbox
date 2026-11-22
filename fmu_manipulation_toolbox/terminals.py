@@ -40,7 +40,7 @@ class Terminal:
 
     def connect(self, other) -> list[tuple[str, str]]:
         if not isinstance(other, Terminal):
-            logger.error(f"Cannot connect Terminal '{self.path}' to '{other}'.")
+            logger.error(f"Cannot connect the terminal '{self.path}' to '{other}': it is not a terminal.")
             return []
 
         if self.matching == "plug":

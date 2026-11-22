@@ -283,7 +283,7 @@ class FMUSplitterDescription:
         header = file.readline().decode('utf-8').strip()
         if "Version " in header:
             self.file_format = int(header[header.index("Version ")+8:])
-            logger.debug(f"File format: {self.file_format}")
+            logger.debug(f"File format: {self.file_format}.")
 
         flags = self.get_line(file).split(" ")
         if len(flags) == 1:
@@ -292,7 +292,7 @@ class FMUSplitterDescription:
             self.config["profiling"] = self.get_line(file) == "1"
             self.config["sequential"] = False
             self.file_format = 1
-            logger.debug(f"File format: {self.file_format}")
+            logger.debug(f"File format: {self.file_format}.")
         elif len(flags) >= 3:
             #self.supported_fmi_types = ALL_TYPES
             self.config["mt"] = flags[0] == "1"
@@ -302,7 +302,7 @@ class FMUSplitterDescription:
                 self.config["mt_threshold"] = int(flags[3]) / 1e6
             if self.file_format == 1:
                 self.file_format = 2
-            logger.debug(f"File format: {self.file_format}")
+            logger.debug(f"File format: {self.file_format}.")
         else:
             raise FMUSplitterError(f"Cannot interpret the flags '{' '.join(flags)}'.")
 

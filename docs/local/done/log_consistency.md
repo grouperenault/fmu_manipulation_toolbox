@@ -161,6 +161,16 @@ Taken on 22 November 2026, at the start of step 6:
 - **D22 — Scope of step 6**: the Python package, the C runtime, `tools/` and `tests/`; not the files copied from the
   standard (`resources/fmi*/`, FMI headers) nor the third-party data (`tests/data/`).
 
+Taken on 22 November 2026, after the plan (second pass on all the messages):
+
+- **D23 — Layout**: aligning columns with spaces is allowed when it helps the reader (tables of the debug log of
+  the runtime, `%-10s`); it replaces the "no layout" rule of §3.
+- **Reason of D9** (levels of the runtime unchanged): FMI has no "info" status; the runtime sends the debug
+  messages with `fmi2OK` / `fmi3OK` only in debug mode, so a message that must always be shown (version, mode,
+  `Solver configuration.`) is sent as a warning or an error. Documented in `docs/developer/logging.md`.
+- **D24 — UTF-8**: allowed when it makes a message simpler (arrows `→`, `↔` of the links), in the Python package
+  only; the native runtimes stay in ASCII (the logger of the importer may not decode UTF-8).
+
 ---
 
 ## 5. Steps

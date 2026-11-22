@@ -374,5 +374,5 @@ def test_actions_are_logged_as_sentences(bridge, ball, caplog):
         bridge.add_fmu(str(ball / "bb_velocity.fmu"))
         bridge.add_link("bb_velocity.fmu", "velocity", "bb_position.fmu", "velocity")
     assert "AI Assistant: FMU 'bb_position.fmu' added." in caplog.messages
-    assert "AI Assistant: port 'bb_velocity.fmu/velocity' linked to port 'bb_position.fmu/velocity'." in caplog.messages
+    assert "AI Assistant: link 'bb_velocity.fmu/velocity' → 'bb_position.fmu/velocity' added." in caplog.messages
     assert not any(message.startswith("[AI]") for message in caplog.messages)

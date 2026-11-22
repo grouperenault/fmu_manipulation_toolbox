@@ -216,7 +216,7 @@ datalog_t *datalog_new(const logger_t *logger, const char *dirname) {
 
     datalog_t *datalog = datalog_init();
     if (!datalog) {
-        LOGGER_ERROR("Cannot allocate datalog memory.");
+        LOGGER_ERROR("Cannot allocate the memory of the datalog.");
         file_close(&config);
         return NULL;
     }

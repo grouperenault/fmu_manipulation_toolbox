@@ -637,7 +637,7 @@ class RunTask(QDialog):
         log_handler.record_emitted.connect(self._on_record)
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         with window_log_context(self._owner) if parent is not None else contextlib.nullcontext():
-            logger.debug(f"Starting {title}...")
+            logger.debug(f"Starting {title}.")
             try:
                 task(*args, **kwargs)
                 self.succeeded = True

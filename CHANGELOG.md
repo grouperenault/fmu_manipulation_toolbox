@@ -162,7 +162,7 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   ignored with a warning, together with its connections.
 - 🔵 **CHANGED** messages of the builder, of `fmucontainer`, of `fmusplit` and of the runtime (logged through the
   importer): sentences with the names between quotes (`Port 'a.fmu/y'`). The automatic wiring writes
-  `Auto link: port 'a.fmu/y' to port 'b.fmu/u'.` instead of `AUTO LINK: …`; the runtime writes the value references
+  `Auto link: 'a.fmu/y' → 'b.fmu/u'.` instead of `AUTO LINK: …`; the runtime writes the value references
   as `the clock 3` instead of `vr=3`, without `[DEBUG]` tag, and its modes as `Container uses the parallel mode with
   several threads…` instead of `Container use PARALLEL mode with MULTI thread…`. See
   [Log Messages](docs/developer/logging.md).
@@ -196,8 +196,8 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   (`{"old": "new"}`) or the `csv`, and reports the names of the mapping absent from the FMU (`unknown`).
 - 🔵 **CHANGED** shorter descriptions of some MCP tools and container options, to make room for the new tools
   in the context of small models.
-- 🔵 **CHANGED** the actions of the AI Assistant are logged as `AI Assistant: port 'a.fmu/y' linked to port
-  'b.fmu/u'.` instead of `[AI] Linked …`, in the Container Builder and in `fmutool-mcp`.
+- 🔵 **CHANGED** the actions of the AI Assistant are logged as `AI Assistant: link 'a.fmu/y' → 'b.fmu/u' added.`
+  instead of `[AI] Linked …`, in the Container Builder and in `fmutool-mcp`.
 
 ## fmutool and the Python API
 

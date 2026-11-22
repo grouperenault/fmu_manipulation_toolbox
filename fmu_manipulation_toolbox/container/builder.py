@@ -461,7 +461,7 @@ class FMUContainer:
         local.add_target(cport_to)  # Causality is check in the add() function
         self.input_feeders[cport_to] = feeder
 
-        logger.debug(f"{cport_from} is linked to port {cport_to.label}.")
+        logger.debug(f"Link: {cport_from.label} → {cport_to.label}.")
         self.mark_ruled(cport_from, 'LINK')
         self.mark_ruled(cport_to, 'LINK')
 
@@ -619,7 +619,7 @@ class FMUContainer:
                                          if candidate not in self.rules and not candidate.fmu.is_instance]
                 if auto_link and candidates_cport_list and not cport.fmu.is_instance:
                     for candidate_cport in candidates_cport_list:
-                        logger.info(f"Auto link: port {cport.label} to port {candidate_cport.label}.")
+                        logger.info(f"Auto link: {cport.label} → {candidate_cport.label}.")
                         self.add_link(cport.fmu.name, cport.port.name,
                                       candidate_cport.fmu.name, candidate_cport.port.name)
                         auto_wired.add_link(cport.fmu.name, cport.port.name,

@@ -85,14 +85,14 @@ def test_fmi3_missing_value_reference_assumes_one_and_warns(caplog):
     md = fmi3("", "<EventIndicator/>")
     with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
         assert md.model_exchange_sizes("m.fmu") == (0, 1)
-    assert "without valueReference" in caplog.text
+    assert "has no valueReference: 1 element assumed." in caplog.text
 
 
 def test_fmi3_unknown_value_reference_assumes_one_and_warns(caplog):
     md = fmi3("", '<ContinuousStateDerivative valueReference="404"/>')
     with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
         assert md.model_exchange_sizes("m.fmu") == (1, 0)
-    assert "unknown variable" in caplog.text
+    assert "refers to the unknown valueReference" in caplog.text
 
 
 def test_fmi3_unresolvable_structural_parameter_assumes_one_and_warns(caplog):
