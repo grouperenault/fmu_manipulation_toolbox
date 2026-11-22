@@ -101,15 +101,15 @@ typedef struct {
                           F M U _ S T A R T _ xxx _ T
 ----------------------------------------------------------------------------*/
 
-#define DECLARE_START_TYPE(variable, fmi_type, c_type)  \
-typedef struct {                                        \
-    unsigned long               nb;                     \
-    struct {                                            \
-        fmu_vr_t                vr;                     \
+#define DECLARE_START_TYPE(variable, fmi_type, c_type)                     \
+typedef struct {                                                           \
+    unsigned long               nb;                                        \
+    struct {                                                               \
+        fmu_vr_t                vr;                                        \
         unsigned int            dimension;  /* number of values (array) */ \
-        int                     reset;                  \
-        c_type                  *value;                 \
-    } *start_values;                                    \
+        int                     reset;                                     \
+        c_type                  *value;                                    \
+    } *start_values;                                                       \
 } fmu_start_ ## variable ## _t;
 
 FOR_ALL_NUMERIC_TYPES(DECLARE_START_TYPE)

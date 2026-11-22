@@ -587,17 +587,17 @@ static bool container_start_value_phase(int reset, start_values_phase_t phase) {
 static fmu_status_t container_set_fmu_start_values(const fmu_t *fmu, start_values_phase_t phase) {
     const logger_t *logger = &fmu->container->logger;
 
-#define SET_START(variable, fmi_type, c_type)                                                   \
-    for(unsigned long j=0; j<fmu->fmu_io.start_ ## variable .nb; j ++) {                        \
+#define SET_START(variable, fmi_type, c_type)                                                           \
+    for(unsigned long j=0; j<fmu->fmu_io.start_ ## variable .nb; j ++) {                                \
         if (container_start_value_phase(fmu->fmu_io.start_ ## variable.start_values[j].reset, phase) && \
-            fmuSet ## fmi_type(fmu,                                                             \
-                &fmu->fmu_io.start_ ## variable.start_values[j].vr, 1,                          \
-                fmu->fmu_io.start_ ## variable.start_values[j].value,                           \
-                fmu->fmu_io.start_ ## variable.start_values[j].dimension) != FMU_STATUS_OK) {   \
-            LOGGER_ERROR("Container: FMU '%s' refused the start value of the " #variable        \
-                         " %u.", fmu->name, fmu->fmu_io.start_ ## variable.start_values[j].vr); \
-            return FMU_STATUS_ERROR;                                                            \
-        }                                                                                       \
+            fmuSet ## fmi_type(fmu,                                                                     \
+                &fmu->fmu_io.start_ ## variable.start_values[j].vr, 1,                                  \
+                fmu->fmu_io.start_ ## variable.start_values[j].value,                                   \
+                fmu->fmu_io.start_ ## variable.start_values[j].dimension) != FMU_STATUS_OK) {           \
+            LOGGER_ERROR("Container: FMU '%s' refused the start value of the " #variable                \
+                         " %u.", fmu->name, fmu->fmu_io.start_ ## variable.start_values[j].vr);         \
+            return FMU_STATUS_ERROR;                                                                    \
+        }                                                                                               \
     }
 
     FOR_ALL_NUMERIC_TYPES(SET_START)
@@ -921,7 +921,7 @@ fmu_status_t container_reset(container_t* container) {
     }
 
     /* Local variables, as allocated by config_read_local() (config.c) */
-#define RESET_LOCAL(variable, fmi_type, c_type)                             \
+#define RESET_LOCAL(variable, fmi_type, c_type)                            \
     for (unsigned long i = 0; i < container-> variable .nb_locals; i += 1) \
         container-> variable .locals [i] = (c_type)0;
 
@@ -1705,9 +1705,9 @@ void container_free(container_t *container) {
     free(container->instance_name);
     free(container->uuid);
 
-#define FREE(variable, fmi_type, c_type)    \
-    free(container-> variable .links);       \
-    free(container-> variable .ports);     \
+#define FREE(variable, fmi_type, c_type) \
+    free(container-> variable .links);   \
+    free(container-> variable .ports);   \
     free(container-> variable .locals);
 
     FOR_ALL_NUMERIC_TYPES(FREE)

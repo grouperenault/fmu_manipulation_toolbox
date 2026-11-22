@@ -78,20 +78,20 @@ cache_t *cache_new(container_t *container) {
     unsigned long nb_entries = 0;
     cache->nb_fmus = (unsigned long)container->nb_fmu;
     CACHE_ALLOC(cache->fmus, cache->nb_fmus)
-#define COUNT_LINKS(variable, fmi_type, c_type)                                                          \
-    for (unsigned long i = 0; i < container-> variable .nb_ports; i += 1) {                              \
-        const container_port_t *port = &container-> variable .ports [i];                                 \
-        for (unsigned long j = 0; j < port->nb; j += 1) {                                                \
-            const container_vr_t *link = &port->links[j];                                                \
-            if ((long)link->fmu_id >= 0) {                                                               \
+#define COUNT_LINKS(variable, fmi_type, c_type)                                                                  \
+    for (unsigned long i = 0; i < container-> variable .nb_ports; i += 1) {                                      \
+        const container_port_t *port = &container-> variable .ports [i];                                         \
+        for (unsigned long j = 0; j < port->nb; j += 1) {                                                        \
+            const container_vr_t *link = &port->links[j];                                                        \
+            if ((long)link->fmu_id >= 0) {                                                                       \
                 cache->fmus[link->fmu_id].sets[link->cache.start_reset == 2][CACHE_TYPE_ ## variable].size += 1; \
-                nb_entries += 1;                                                                         \
-            }                                                                                            \
-        }                                                                                                \
-        if (port->cache.has_local) {                                                                     \
-            cache->deferred[CACHE_TYPE_ ## variable].size += 1;                                          \
-            nb_entries += 1;                                                                             \
-        }                                                                                                \
+                nb_entries += 1;                                                                                 \
+            }                                                                                                    \
+        }                                                                                                        \
+        if (port->cache.has_local) {                                                                             \
+            cache->deferred[CACHE_TYPE_ ## variable].size += 1;                                                  \
+            nb_entries += 1;                                                                                     \
+        }                                                                                                        \
     }
 
     FOR_ALL_NUMERIC_TYPES(COUNT_LINKS)

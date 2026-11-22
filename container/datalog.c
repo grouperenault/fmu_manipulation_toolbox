@@ -39,16 +39,18 @@ void datalog_log(container_t *container) {
         /* write a row in datalog */
         fprintf(datalog->file, "%.17g", container->time);
 
-#define LOG3(type, fmi_type, format)                                                                                                        \
-        if (datalog->nb_ ## type > 0) {                                                                                                     \
-            fmi3Get ## fmi_type (container, datalog->vr_ ## type, datalog->nb_ ## type, datalog->values_ ## type, datalog->nb_ ## type);    \
-            for(unsigned long i = 0; i < datalog->nb_ ## type; i += 1)                                                                      \
+#define LOG3(type, fmi_type, format)                                                                   \
+        if (datalog->nb_ ## type > 0) {                                                                \
+            fmi3Get ## fmi_type (container, datalog->vr_ ## type, datalog->nb_ ## type,                \
+                                 datalog->values_ ## type, datalog->nb_ ## type);                      \
+            for(unsigned long i = 0; i < datalog->nb_ ## type; i += 1)                                 \
                 fprintf(datalog->file, "%c" format, datalog->separator, datalog->values_ ## type [i]); \
         }
-#define LOG2(type, fmi_type, format)                                                                                                        \
-        if (datalog->nb_ ## type > 0) {                                                                                                     \
-            fmi2Get ## fmi_type (container, datalog->vr_ ## type, datalog->nb_ ## type, datalog->values_ ## type);                          \
-            for(unsigned long i = 0; i < datalog->nb_ ## type; i += 1)                                                                      \
+#define LOG2(type, fmi_type, format)                                                                   \
+        if (datalog->nb_ ## type > 0) {                                                                \
+            fmi2Get ## fmi_type (container, datalog->vr_ ## type, datalog->nb_ ## type,                \
+                                 datalog->values_ ## type);                                            \
+            for(unsigned long i = 0; i < datalog->nb_ ## type; i += 1)                                 \
                 fprintf(datalog->file, "%c" format, datalog->separator, datalog->values_ ## type [i]); \
         }
 
@@ -118,8 +120,8 @@ void datalog_log(container_t *container) {
 
 static datalog_t *datalog_init(void) {
 #define INIT(variable, fmi_type, c_type) \
-    datalog->nb_ ## variable = 0; \
-    datalog->vr_ ## variable = NULL; \
+    datalog->nb_ ## variable = 0;        \
+    datalog->vr_ ## variable = NULL;     \
     datalog->values_ ## variable = NULL;
 
     datalog_t *datalog = malloc(sizeof(*datalog));
@@ -250,7 +252,7 @@ void datalog_free(datalog_t *datalog) {
             fclose(datalog->file);
 
 #define FREE(variable, fmi_type, c_type) \
-    free(datalog->vr_ ## variable); \
+    free(datalog->vr_ ## variable);      \
     free(datalog->values_ ## variable);
 
         FOR_ALL_NUMERIC_TYPES(FREE)

@@ -112,7 +112,7 @@ extern void cache_reset(container_t *container);
 /* fmi*Set of a port: stores its values (nvalues: number of values in value[], at most its dimension) and adds its
    links to embedded FMUs to the sets of their FMU. Returns 1 when the caller writes now the local variables of the
    port (it has some, and no step is pending), 0 otherwise, -1 on an allocation failure. */
-#define DECLARE_CACHE_SET(variable, fmi_type, c_type) \
+#define DECLARE_CACHE_SET(variable, fmi_type, c_type)                                                   \
 extern int cache_set_ ## variable(container_t *container, container_port_t *port, const c_type value[], \
                                   size_t nvalues);
 FOR_ALL_NUMERIC_TYPES(DECLARE_CACHE_SET)

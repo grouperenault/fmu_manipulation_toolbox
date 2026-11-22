@@ -150,16 +150,16 @@ fmi3Status fmi3Reset(fmi3Instance instance) {
 
 
 /* Getters and setters of the types without variable: only an empty call succeeds. */
-#define STUB_NO_VARIABLE(fmi_type, c_type)                                                              \
-fmi3Status fmi3Get ## fmi_type(fmi3Instance instance, const fmi3ValueReference vr[], size_t nvr,       \
-                               c_type values[], size_t nValues) {                                       \
-    (void)instance; (void)vr; (void)values; (void)nValues;                                              \
-    return nvr == 0 ? fmi3OK : fmi3Error;                                                               \
-}                                                                                                       \
-fmi3Status fmi3Set ## fmi_type(fmi3Instance instance, const fmi3ValueReference vr[], size_t nvr,       \
-                               const c_type values[], size_t nValues) {                                 \
-    (void)instance; (void)vr; (void)values; (void)nValues;                                              \
-    return nvr == 0 ? fmi3OK : fmi3Error;                                                               \
+#define STUB_NO_VARIABLE(fmi_type, c_type)                                                       \
+fmi3Status fmi3Get ## fmi_type(fmi3Instance instance, const fmi3ValueReference vr[], size_t nvr, \
+                               c_type values[], size_t nValues) {                                \
+    (void)instance; (void)vr; (void)values; (void)nValues;                                       \
+    return nvr == 0 ? fmi3OK : fmi3Error;                                                        \
+}                                                                                                \
+fmi3Status fmi3Set ## fmi_type(fmi3Instance instance, const fmi3ValueReference vr[], size_t nvr, \
+                               const c_type values[], size_t nValues) {                          \
+    (void)instance; (void)vr; (void)values; (void)nValues;                                       \
+    return nvr == 0 ? fmi3OK : fmi3Error;                                                        \
 }
 
 STUB_NO_VARIABLE(Float32,   fmi3Float32)

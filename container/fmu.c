@@ -224,19 +224,19 @@ fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
 #endif
 
 
-#define SET_CLOCKED_INPUT(variable, fmi_type, c_type)                                                       \
-    for (unsigned long i = 0; i < fmu_io->clocked_ ## variable .nb_in; i += 1) {                            \
-        fmu_clocked_port_t *clocked_port = &fmu_io->clocked_ ## variable .in[i];                            \
-        if (clocks[clocked_port->clock_vr]) {                                                               \
-            for(unsigned long j=0; j < clocked_port->translations_list.nb; j += 1) {                        \
-                const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr;         \
-                const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;           \
-                const unsigned int dimension = clocked_port->translations_list.translations[j].dimension;   \
+#define SET_CLOCKED_INPUT(variable, fmi_type, c_type)                                                               \
+    for (unsigned long i = 0; i < fmu_io->clocked_ ## variable .nb_in; i += 1) {                                    \
+        fmu_clocked_port_t *clocked_port = &fmu_io->clocked_ ## variable .in[i];                                    \
+        if (clocks[clocked_port->clock_vr]) {                                                                       \
+            for(unsigned long j=0; j < clocked_port->translations_list.nb; j += 1) {                                \
+                const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr;                 \
+                const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;                   \
+                const unsigned int dimension = clocked_port->translations_list.translations[j].dimension;           \
                 status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable .locals [local_vr], dimension); \
-                if (status != FMU_STATUS_OK)                                                                \
-                    return status;                                                                          \
-            }                                                                                               \
-        }                                                                                                   \
+                if (status != FMU_STATUS_OK)                                                                        \
+                    return status;                                                                                  \
+            }                                                                                                       \
+        }                                                                                                           \
     }
     /*
      * CLOCKED INPUTs
@@ -402,19 +402,19 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
      * CLOCKED OUTPUTs
      */
 
-#define GET_CLOCKED_OUTPUT(variable, fmi_type, c_type)                                                      \
-    for (unsigned long i = 0; i < fmu_io->clocked_ ## variable .nb_out; i += 1) {                           \
-        fmu_clocked_port_t *clocked_port = &fmu_io->clocked_ ## variable .out[i];                           \
-        if (container->clocks.locals[clocked_port->clock_vr]) {                                                    \
-            for(unsigned long j=0; j < clocked_port->translations_list.nb; j += 1) {                        \
-                const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr;         \
-                const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;           \
-                const unsigned int dimension = clocked_port->translations_list.translations[j].dimension;   \
+#define GET_CLOCKED_OUTPUT(variable, fmi_type, c_type)                                                              \
+    for (unsigned long i = 0; i < fmu_io->clocked_ ## variable .nb_out; i += 1) {                                   \
+        fmu_clocked_port_t *clocked_port = &fmu_io->clocked_ ## variable .out[i];                                   \
+        if (container->clocks.locals[clocked_port->clock_vr]) {                                                     \
+            for(unsigned long j=0; j < clocked_port->translations_list.nb; j += 1) {                                \
+                const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr;                 \
+                const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;                   \
+                const unsigned int dimension = clocked_port->translations_list.translations[j].dimension;           \
                 status = fmuGet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable .locals [local_vr], dimension); \
-                if (status != FMU_STATUS_OK)                                                                \
-                    return status;                                                                          \
-            }                                                                                               \
-        }                                                                                                   \
+                if (status != FMU_STATUS_OK)                                                                        \
+                    return status;                                                                                  \
+            }                                                                                                       \
+        }                                                                                                           \
     }
 
     FOR_ALL_NUMERIC_TYPES(GET_CLOCKED_OUTPUT)
@@ -758,13 +758,13 @@ void fmu_unload(fmu_t *fmu) {
 
 /* Free a clocked port list: the per-entry translations arrays, then the
    array of port descriptors itself */
-#define FREE_CLOCKED_DATA(variable, fmi_type, c_type) {                             \
-    for (unsigned long _i = 0; _i < fmu->fmu_io.clocked_ ## variable .nb_in; _i++)  \
-        free(fmu->fmu_io.clocked_ ## variable .in[_i].translations_list.translations);\
-    free(fmu->fmu_io.clocked_ ## variable .in);                                     \
-    for (unsigned long _i = 0; _i < fmu->fmu_io.clocked_ ## variable .nb_out; _i++) \
-        free(fmu->fmu_io.clocked_ ## variable .out[_i].translations_list.translations);\
-    free(fmu->fmu_io.clocked_ ## variable .out);                                    \
+#define FREE_CLOCKED_DATA(variable, fmi_type, c_type) {                                 \
+    for (unsigned long _i = 0; _i < fmu->fmu_io.clocked_ ## variable .nb_in; _i++)      \
+        free(fmu->fmu_io.clocked_ ## variable .in[_i].translations_list.translations);  \
+    free(fmu->fmu_io.clocked_ ## variable .in);                                         \
+    for (unsigned long _i = 0; _i < fmu->fmu_io.clocked_ ## variable .nb_out; _i++)     \
+        free(fmu->fmu_io.clocked_ ## variable .out[_i].translations_list.translations); \
+    free(fmu->fmu_io.clocked_ ## variable .out);                                        \
 }
 
     FOR_ALL_NUMERIC_TYPES(FREE_FMU_DATA)

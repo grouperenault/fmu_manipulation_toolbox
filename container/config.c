@@ -1077,7 +1077,7 @@ int config_container(container_t* container, const char* resource_location) {
         return -6;
     }
 
-#define LOG_IO(variable, fmi_type, c_type) \
+#define LOG_IO(variable, fmi_type, c_type)                                             \
     if ((container-> variable .nb_locals > 0) || (container-> variable .nb_ports > 0)) \
         LOGGER_DEBUG("%s: %lu local variable(s) and %lu port(s).", #variable, container-> variable .nb_locals, container-> variable .nb_ports);
 
@@ -1094,15 +1094,18 @@ int config_container(container_t* container, const char* resource_location) {
             return -7;
         }
 
-#define LOG_IO(orientation, type) \
-    if ((container->fmu[i].fmu_io. type . orientation .nb > 0) || (container->fmu[i].fmu_io.clocked_ ## type .nb_ ## orientation > 0)) \
-        LOGGER_DEBUG("FMU #%d: %s " #orientation "puts: %lu port(s) and %lu clocked.", i, #type, container->fmu[i].fmu_io. type . orientation .nb, container->fmu[i].fmu_io.clocked_ ## type .nb_ ## orientation);
+#define LOG_IO(orientation, type)                                                                \
+    if ((container->fmu[i].fmu_io. type . orientation .nb > 0) ||                                \
+        (container->fmu[i].fmu_io.clocked_ ## type .nb_ ## orientation > 0))                     \
+        LOGGER_DEBUG("FMU #%d: %s " #orientation "puts: %lu port(s) and %lu clocked.", i, #type, \
+                     container->fmu[i].fmu_io. type . orientation .nb,                           \
+                     container->fmu[i].fmu_io.clocked_ ## type .nb_ ## orientation);
 
-#define LOG_IO_CLASSIC(orientation, type) \
-    if (container->fmu[i].fmu_io. type . orientation .nb > 0)\
+#define LOG_IO_CLASSIC(orientation, type)                     \
+    if (container->fmu[i].fmu_io. type . orientation .nb > 0) \
         LOGGER_DEBUG("FMU #%d: %s " #orientation "puts: %lu port(s).", i, #type, container->fmu[i].fmu_io. type . orientation .nb);
         
-#define LOG_START(variable, fmi_type, c_type) \
+#define LOG_START(variable, fmi_type, c_type)                \
     if (container->fmu[i].fmu_io.start_ ## variable .nb > 0) \
         LOGGER_DEBUG("FMU #%d: %s start values: %lu.", i, #variable, container->fmu[i].fmu_io.start_ ## variable .nb);
 

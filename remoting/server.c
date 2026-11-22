@@ -119,7 +119,7 @@ static void library_unload(library_t library) {
 
 
 static int map_entries(fmu_entries_t* entries, library_t library) {
-#	define MAP(x) entries->x = (x ## TYPE*)library_symbol(library, #x); \
+#	define MAP(x) entries->x = (x ## TYPE*)library_symbol(library, #x);                     \
 	SERVER_LOG("function %-30s: %s\n", "`" #x "'", (entries->x)?"found":"not implemented"); \
     if (! entries->x) return -1;
 
@@ -185,15 +185,15 @@ static server_t* server_new(const char *library_filename, unsigned long ppid, co
     server->communication = NULL;
     server->library = NULL;
 
-#define ALLOC(nb, ptr) \
-    if (nb) { \
+#define ALLOC(nb, ptr)                   \
+    if (nb) {                            \
         ptr = malloc(sizeof(*ptr) * nb); \
-        if (!ptr) { \
-            server_free(server); \
-            return NULL; \
-        } \
-    } else { \
-        ptr = NULL; \
+        if (!ptr) {                      \
+            server_free(server);         \
+            return NULL;                 \
+        }                                \
+    } else {                             \
+        ptr = NULL;                      \
     }
 
     ALLOC(nb_reals, server->update.reals.value);
