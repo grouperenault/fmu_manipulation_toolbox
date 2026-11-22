@@ -493,7 +493,7 @@ static int config_read_io(container_t* container, file_t* file) {
                                                                                                                      \
     CONFIG_GETLINE;                                                                                                  \
     if (sscanf(file->line, "%lu", &fmu_io-> type . causality .nb) < 1) {                                             \
-        CONFIG_ERROR("Cannot read the number of FMU I/O '" #type "' (" #causality ").");                                     \
+        CONFIG_ERROR("Cannot read the number of FMU I/O '" #type "' (" #causality ").");                             \
         return -2;                                                                                                   \
     }                                                                                                                \
                                                                                                                      \

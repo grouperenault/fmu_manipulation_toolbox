@@ -206,7 +206,7 @@ fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
                                                                                                                         \
         if (fmu_id < 0) {                                                                                               \
             if (fmu_vr >= container-> type .nb_locals) {                                                                \
-                LOGGER_ERROR("Container: cannot get the " #fmi_type " %d: out of bounds.", fmu_vr);            \
+                LOGGER_ERROR("Container: cannot get the " #fmi_type " %d: out of bounds.", fmu_vr);                     \
                 return fmi2Error;                                                                                       \
             }                                                                                                           \
             value[i] = container-> type .locals [fmu_vr] local;                                                         \
@@ -217,7 +217,7 @@ fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
                                                                                                                         \
             fmu_status_t status = function_name (fmu, &fmu_vr, 1, &value[i], 1);                                        \
             if (status != FMU_STATUS_OK) {                                                                              \
-                LOGGER_ERROR("Container: FMU '%s' failed to get the " #fmi_type " %d.", fmu->name, fmu_vr);              \
+                LOGGER_ERROR("Container: FMU '%s' failed to get the " #fmi_type " %d.", fmu->name, fmu_vr);             \
                 return fmi2Error;                                                                                       \
             }                                                                                                           \
         }                                                                                                               \
@@ -251,7 +251,7 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
             if ((long)port->links[j].fmu_id >= 0)                                                                               \
                 continue;                                                                                                       \
             if (fmu_vr >= container-> type .nb_locals) {                                                                        \
-                LOGGER_ERROR("Container: cannot set the " #fmi_type " %d: out of bounds.", fmu_vr);                    \
+                LOGGER_ERROR("Container: cannot set the " #fmi_type " %d: out of bounds.", fmu_vr);                             \
                 return fmi2Error;                                                                                               \
             }                                                                                                                   \
             container-> type .locals [fmu_vr] = value[i];                                                                       \

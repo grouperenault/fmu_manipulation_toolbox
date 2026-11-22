@@ -251,7 +251,7 @@ int cache_set_ ## type(container_t *container, container_port_t *port, const c_t
     for (size_t k = 0; k < nvalues; k += 1)                                                       \
         container->cache-> type [port->cache.offset + k] = value[k];                              \
     port->cache.nb = (unsigned long)nvalues;   /* at most the dimension of the port */            \
-    LOGGER_DEBUG("Cache " #type " [%lu] = " format " (%zu value(s)).", port->cache.offset, \
+    LOGGER_DEBUG("Cache " #type " [%lu] = " format " (%zu value(s)).", port->cache.offset,        \
                  (cast)value[0], nvalues);                                                        \
     return cache_port_set(container, CACHE_TYPE_ ## type, port);                                  \
 }

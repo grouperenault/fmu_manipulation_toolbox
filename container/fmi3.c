@@ -207,7 +207,7 @@ fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
                                                                                                                     \
         if (fmu_id < 0) {                                                                                           \
             if (fmu_vr + port->dimension > container-> type .nb_locals) {                                           \
-                LOGGER_ERROR("Container: cannot get the " #fmi_type " %d: out of bounds.", fmu_vr);        \
+                LOGGER_ERROR("Container: cannot get the " #fmi_type " %d: out of bounds.", fmu_vr);                 \
                 return fmi3Error;                                                                                   \
             }                                                                                                       \
             for(size_t j = 0; j < port->dimension; j += 1)                                                          \
@@ -219,7 +219,7 @@ fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
                                                                                                                     \
             fmu_status_t status = function_name (fmu, &fmu_vr, 1, &value[value_index], port->dimension);            \
             if (status != FMU_STATUS_OK) {                                                                          \
-                LOGGER_ERROR("Container: FMU '%s' failed to get the " #fmi_type " %d.", fmu->name, fmu_vr);          \
+                LOGGER_ERROR("Container: FMU '%s' failed to get the " #fmi_type " %d.", fmu->name, fmu_vr);         \
                 return fmi3Error;                                                                                   \
             }                                                                                                       \
         }                                                                                                           \
@@ -228,7 +228,7 @@ fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
     }                                                                                                               \
                                                                                                                     \
     if (value_index != nValues) {                                                                                   \
-        LOGGER_ERROR("%s: %zu value(s) expected, called with nValues = %zu.",                                               \
+        LOGGER_ERROR("%s: %zu value(s) expected, called with nValues = %zu.",                                       \
             __func__, value_index, nValues);                                                                        \
         return fmi3Error;                                                                                           \
     }                                                                                                               \
@@ -352,7 +352,7 @@ fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
             if ((long)port->links[j].fmu_id >= 0)                                                                       \
                 continue;                                                                                               \
             if (fmu_vr + port->dimension > container-> type .nb_locals) {                                               \
-                LOGGER_ERROR("Container: cannot set the " #fmi_type " %d: out of bounds.", fmu_vr);            \
+                LOGGER_ERROR("Container: cannot set the " #fmi_type " %d: out of bounds.", fmu_vr);                     \
                 return fmi3Error;                                                                                       \
             }                                                                                                           \
             for(size_t k = 0; k < port->dimension; k += 1)                                                              \
@@ -362,7 +362,7 @@ fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
     }                                                                                                                   \
                                                                                                                         \
     if (value_index != nValues) {                                                                                       \
-        LOGGER_ERROR("%s: %zu value(s) expected, called with nValues = %zu.",                                                   \
+        LOGGER_ERROR("%s: %zu value(s) expected, called with nValues = %zu.",                                           \
             __func__, value_index, nValues);                                                                            \
         return fmi3Error;                                                                                               \
     }                                                                                                                   \

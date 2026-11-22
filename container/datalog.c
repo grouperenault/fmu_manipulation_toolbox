@@ -158,33 +158,33 @@ int datalog_configure(file_t *config, datalog_t *datalog) {
 
 
 #define READ(variable, fmi_type, c_type)                                                                         \
-    if (file_get_line(config)) {                                                                                      \
-        LOGGER_ERROR("Cannot determine the datalog of " #variable ".");                                                 \
+    if (file_get_line(config)) {                                                                                 \
+        LOGGER_ERROR("Cannot determine the datalog of " #variable ".");                                          \
         return -3;   /* the datalog is freed by datalog_new() */                                                 \
     }                                                                                                            \
     if (sscanf(config->line, "%lu", &datalog->nb_ ## variable) < 1) {                                            \
-        LOGGER_ERROR("Cannot get the datalog definition of " #variable ".");                                             \
+        LOGGER_ERROR("Cannot get the datalog definition of " #variable ".");                                     \
         return -4;                                                                                               \
     }                                                                                                            \
     if (datalog->nb_ ## variable) {                                                                              \
         datalog->vr_ ## variable = malloc(datalog->nb_ ## variable * sizeof(*datalog->vr_ ## variable));         \
         datalog->values_ ## variable = malloc(datalog->nb_ ## variable * sizeof(*datalog->values_ ## variable)); \
         if (!datalog->vr_ ## variable || !datalog->values_## variable) {                                         \
-            LOGGER_ERROR("Cannot allocate memory for the definition of " #variable ".");                                 \
+            LOGGER_ERROR("Cannot allocate memory for the definition of " #variable ".");                         \
             return -5;                                                                                           \
         }                                                                                                        \
         for(unsigned long i=0; i < datalog->nb_ ## variable; i += 1) {                                           \
             int offset = 0;                                                                                      \
-            if (file_get_line(config)) {                                                                              \
-                LOGGER_ERROR("Cannot get the definition of " #variable ".");                                             \
+            if (file_get_line(config)) {                                                                         \
+                LOGGER_ERROR("Cannot get the definition of " #variable ".");                                     \
                 return -6;                                                                                       \
             }                                                                                                    \
             if (sscanf(config->line, "%u %n", &datalog->vr_ ## variable [i], &offset) < 1) {                     \
-                LOGGER_ERROR("Cannot read the definition of " #variable ".");                                            \
+                LOGGER_ERROR("Cannot read the definition of " #variable ".");                                    \
                 return -7;                                                                                       \
             }                                                                                                    \
-            fputc(datalog->separator, datalog->file); \
-            datalog_write_csv_field(datalog->file, datalog->separator, config->line+offset); \
+            fputc(datalog->separator, datalog->file);                                                            \
+            datalog_write_csv_field(datalog->file, datalog->separator, config->line+offset);                     \
         }                                                                                                        \
     }
 

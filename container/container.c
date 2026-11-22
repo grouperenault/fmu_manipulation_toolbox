@@ -594,8 +594,8 @@ static fmu_status_t container_set_fmu_start_values(const fmu_t *fmu, start_value
                 &fmu->fmu_io.start_ ## variable.start_values[j].vr, 1,                          \
                 fmu->fmu_io.start_ ## variable.start_values[j].value,                           \
                 fmu->fmu_io.start_ ## variable.start_values[j].dimension) != FMU_STATUS_OK) {   \
-            LOGGER_ERROR("Container: FMU '%s' refused the start value of the " #variable " %u.", \
-                         fmu->name, fmu->fmu_io.start_ ## variable.start_values[j].vr);         \
+            LOGGER_ERROR("Container: FMU '%s' refused the start value of the " #variable        \
+                         " %u.", fmu->name, fmu->fmu_io.start_ ## variable.start_values[j].vr); \
             return FMU_STATUS_ERROR;                                                            \
         }                                                                                       \
     }

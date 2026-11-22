@@ -800,13 +800,13 @@ fmu_status_t fmuGet ## fmi_type(const fmu_t *fmu, const fmu_vr_t vr[], size_t nv
     if (fmu->fmi_version == FMU_2) {                                                                                \
         fmi2Status status2 = fmu->fmi_functions.version_2. fmi2_function (fmu->component, vr, nvr, value);          \
         if (status2 != fmi2OK) {                                                                                    \
-            LOGGER_ERROR("FMU \'%s\': fmuGet" #fmi_type " failed (status %d).", fmu->name, status2);                                  \
+            LOGGER_ERROR("FMU '%s': fmuGet" #fmi_type " failed (status %d).", fmu->name, status2);                  \
             status = FMU_STATUS_ERROR;                                                                              \
         }                                                                                                           \
     } else {                                                                                                        \
         fmi3Status status3 = fmu->fmi_functions.version_3. fmi3_function (fmu->component, vr, nvr, value, nvalues); \
         if (status3 != fmi3OK) {                                                                                    \
-            LOGGER_ERROR("FMU \'%s\': fmuGet" #fmi_type " failed (status %d).", fmu->name, status3);                                  \
+            LOGGER_ERROR("FMU '%s': fmuGet" #fmi_type " failed (status %d).", fmu->name, status3);                  \
             status = FMU_STATUS_ERROR;                                                                              \
         }                                                                                                           \
     }                                                                                                               \
@@ -821,12 +821,12 @@ fmu_status_t fmuGet ## fmi_type(const fmu_t *fmu, const fmu_vr_t vr[], size_t nv
     fmu_status_t status = FMU_STATUS_OK;                                                                            \
                                                                                                                     \
     if (fmu->fmi_version == FMU_2) {                                                                                \
-        LOGGER_ERROR("FMU \'%s\': fmuGet" #fmi_type " is not supported.", fmu->name);                                          \
+        LOGGER_ERROR("FMU '%s': fmuGet" #fmi_type " is not supported.", fmu->name);                                 \
         status = FMU_STATUS_ERROR;                                                                                  \
     } else {                                                                                                        \
         fmi3Status status3 = fmu->fmi_functions.version_3. fmi3_function (fmu->component, vr, nvr, value, nvalues); \
         if (status3 != fmi3OK) {                                                                                    \
-            LOGGER_ERROR("FMU \'%s\': fmuGet" #fmi_type " failed (status %d).", fmu->name, status3);                                  \
+            LOGGER_ERROR("FMU '%s': fmuGet" #fmi_type " failed (status %d).", fmu->name, status3);                  \
             status = FMU_STATUS_ERROR;                                                                              \
         }                                                                                                           \
     }                                                                                                               \
@@ -844,11 +844,11 @@ fmu_status_t fmuGet ## fmi_type(const fmu_t *fmu, const fmu_vr_t vr[], size_t nv
     if (fmu->fmi_version == FMU_2) {                                                                                \
         fmi2Status status2 = fmu->fmi_functions.version_2. fmi2_function (fmu->component, vr, nvr, value);          \
         if (status2 != fmi2OK) {                                                                                    \
-            LOGGER_ERROR("FMU \'%s\': fmuGet" #fmi_type " failed (status %d).", fmu->name, status2);                                  \
+            LOGGER_ERROR("FMU '%s': fmuGet" #fmi_type " failed (status %d).", fmu->name, status2);                  \
             status = FMU_STATUS_ERROR;                                                                              \
         }                                                                                                           \
     } else {                                                                                                        \
-        LOGGER_ERROR("FMU \'%s\': fmuGet" #fmi_type " is not supported.", fmu->name);                                          \
+        LOGGER_ERROR("FMU '%s': fmuGet" #fmi_type " is not supported.", fmu->name);                                 \
         status = FMU_STATUS_ERROR;                                                                                  \
     }                                                                                                               \
                                                                                                                     \
@@ -882,12 +882,12 @@ fmu_status_t fmuGetBinary(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, siz
     fmu_status_t status = FMU_STATUS_OK;
 
     if (fmu->fmi_version == FMU_2) {
-        LOGGER_ERROR("FMU \'%s\': fmuGetBinary is not supported.", fmu->name);
+        LOGGER_ERROR("FMU '%s': fmuGetBinary is not supported.", fmu->name);
         status = FMU_STATUS_ERROR;
     } else {
         fmi3Status status3 = fmu->fmi_functions.version_3.fmi3GetBinary(fmu->component, vr, nvr, size, value, nvalues);
         if (status3 != fmi3OK) {
-            LOGGER_ERROR("FMU \'%s\': fmuGetBinary failed (status %d).", fmu->name, status3);
+            LOGGER_ERROR("FMU '%s': fmuGetBinary failed (status %d).", fmu->name, status3);
             status = FMU_STATUS_ERROR;
         }
     }
@@ -900,12 +900,12 @@ fmu_status_t fmuGetClock(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, bool
     fmu_status_t status = FMU_STATUS_OK;
 
     if (fmu->fmi_version == FMU_2) {
-        LOGGER_ERROR("FMU \'%s\': fmuGetClock is not supported.", fmu->name);
+        LOGGER_ERROR("FMU '%s': fmuGetClock is not supported.", fmu->name);
         status = FMU_STATUS_ERROR;
     } else {
         fmi3Status status3 = fmu->fmi_functions.version_3.fmi3GetClock(fmu->component, vr, nvr, value);
         if (status3 != fmi3OK) {
-            LOGGER_ERROR("FMU \'%s\': fmuGetClock failed (status %d).", fmu->name, status3);
+            LOGGER_ERROR("FMU '%s': fmuGetClock failed (status %d).", fmu->name, status3);
             status = FMU_STATUS_ERROR;
         }
     }
@@ -921,13 +921,13 @@ fmu_status_t fmuSet ## fmi_type(const fmu_t *fmu, const fmu_vr_t vr[], size_t nv
     if (fmu->fmi_version == FMU_2) {                                                                                        \
         fmi2Status status2 = fmu->fmi_functions.version_2. fmi2_function (fmu->component, vr, nvr, value);                  \
         if (status2 != fmi2OK) {                                                                                            \
-            LOGGER_ERROR("FMU \'%s\': fmuSet" #fmi_type " failed (status %d).", fmu->name, status2);                                          \
+            LOGGER_ERROR("FMU '%s': fmuSet" #fmi_type " failed (status %d).", fmu->name, status2);                          \
             status = FMU_STATUS_ERROR;                                                                                      \
         }                                                                                                                   \
     } else {                                                                                                                \
         fmi3Status status3 = fmu->fmi_functions.version_3. fmi3_function (fmu->component, vr, nvr, value, nvalues);         \
         if (status3 != fmi3OK) {                                                                                            \
-            LOGGER_ERROR("FMU \'%s\': fmuSet" #fmi_type " failed (status %d).", fmu->name, status3);                                          \
+            LOGGER_ERROR("FMU '%s': fmuSet" #fmi_type " failed (status %d).", fmu->name, status3);                          \
             status = FMU_STATUS_ERROR;                                                                                      \
         }                                                                                                                   \
     }                                                                                                                       \
@@ -942,12 +942,12 @@ fmu_status_t fmuSet ## fmi_type(const fmu_t *fmu, const fmu_vr_t vr[], size_t nv
     fmu_status_t status = FMU_STATUS_OK;                                                                                    \
                                                                                                                             \
     if (fmu->fmi_version == FMU_2) {                                                                                        \
-        LOGGER_ERROR("FMU \'%s\': fmuSet" #fmi_type " is not supported.", fmu->name);                                                  \
+        LOGGER_ERROR("FMU '%s': fmuSet" #fmi_type " is not supported.", fmu->name);                                         \
         status = FMU_STATUS_ERROR;                                                                                          \
     } else {                                                                                                                \
         fmi3Status status3 = fmu->fmi_functions.version_3. fmi3_function (fmu->component, vr, nvr, value, nvalues);         \
         if (status3 != fmi3OK) {                                                                                            \
-            LOGGER_ERROR("FMU \'%s\': fmuSet" #fmi_type " failed (status %d).", fmu->name, status3);                                           \
+            LOGGER_ERROR("FMU '%s': fmuSet" #fmi_type " failed (status %d).", fmu->name, status3);                          \
             status = FMU_STATUS_ERROR;                                                                                      \
         }                                                                                                                   \
     }                                                                                                                       \
@@ -965,11 +965,11 @@ fmu_status_t fmuSet ## fmi_type(const fmu_t *fmu, const fmu_vr_t vr[], size_t nv
     if (fmu->fmi_version == FMU_2) {                                                                                        \
         fmi2Status status2 = fmu->fmi_functions.version_2. fmi2_function (fmu->component, vr, nvr, value);                  \
         if (status2 != fmi2OK) {                                                                                            \
-            LOGGER_ERROR("FMU \'%s\': fmuSet" #fmi_type " failed (status %d).", fmu->name, status2);                                          \
+            LOGGER_ERROR("FMU '%s': fmuSet" #fmi_type " failed (status %d).", fmu->name, status2);                          \
             status = FMU_STATUS_ERROR;                                                                                      \
         }                                                                                                                   \
     } else {                                                                                                                \
-        LOGGER_ERROR("FMU \'%s\': fmuSet" #fmi_type " is not supported.", fmu->name);                                                  \
+        LOGGER_ERROR("FMU '%s': fmuSet" #fmi_type " is not supported.", fmu->name);                                         \
         status = FMU_STATUS_ERROR;                                                                                          \
     }                                                                                                                       \
                                                                                                                             \
@@ -1002,12 +1002,12 @@ fmu_status_t fmuSetBinary(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, con
     fmu_status_t status = FMU_STATUS_OK;
 
     if (fmu->fmi_version == FMU_2) {
-        LOGGER_ERROR("FMU \'%s\': fmuSetBinary is not supported.", fmu->name);
+        LOGGER_ERROR("FMU '%s': fmuSetBinary is not supported.", fmu->name);
         status = FMU_STATUS_ERROR;
     } else {
         fmi3Status status3 = fmu->fmi_functions.version_3.fmi3SetBinary(fmu->component, vr, nvr, size, value, nvalues);
         if (status3 != fmi3OK) {
-            LOGGER_ERROR("FMU \'%s\': fmuSetBinary failed (status %d).", fmu->name, status3);
+            LOGGER_ERROR("FMU '%s': fmuSetBinary failed (status %d).", fmu->name, status3);
             status = FMU_STATUS_ERROR;
         }
     }
@@ -1025,12 +1025,12 @@ fmu_status_t fmuSetClock(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, cons
                      value[i]);
 #endif
     if (fmu->fmi_version == FMU_2) {
-        LOGGER_ERROR("FMU \'%s\': fmuSetClock is not supported.", fmu->name);
+        LOGGER_ERROR("FMU '%s': fmuSetClock is not supported.", fmu->name);
         status = FMU_STATUS_ERROR;
     } else {
         fmi3Status status3 = fmu->fmi_functions.version_3.fmi3SetClock(fmu->component, vr, nvr, value);
         if (status3 != fmi3OK) {
-            LOGGER_ERROR("FMU \'%s\': fmuSetClock failed (status %d).", fmu->name, status3);
+            LOGGER_ERROR("FMU '%s': fmuSetClock failed (status %d).", fmu->name, status3);
             status = FMU_STATUS_ERROR;
         }
     }
