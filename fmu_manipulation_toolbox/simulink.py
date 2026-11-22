@@ -1,0 +1,511 @@
+"""Export of an assembly to Simulink.
+
+The export produces a MATLAB script that builds a Simulink model with native FMU blocks (library *Simulink Extras /
+FMU Import*). This module first analyses the assembly into an intermediate model: systems (the root and one subsystem
+per sub-container), blocks and lines with their port indices, in pure Python, so that it can be tested without
+MATLAB. See `docs/local/simulink_export.md` (decisions 1 to 26).
+"""
+import logging
+import math
+import re
+from dataclasses import dataclass, field
+from fractions import Fraction
+from pathlib import Path
+
+from .assembly import Assembly, AssemblyError, AssemblyNode, Port
+from .container import FMUContainerError
+from .container.builder import FMUContainer, deduce_step_size
+from .container.embedded import EmbeddedFMU, EmbeddedFMUPort
+from .terminals import TerminalError
+
+logger = logging.getLogger("fmu_manipulation_toolbox")
+
+#: Types of the ports that get no `Constant` block when they are not connected: they have no constant value.
+NO_CONSTANT_TYPES = ("clock", "binary")
+
+#: Longest MATLAB identifier (`namelengthmax`).
+MATLAB_NAME_LENGTH = 63
+
+
+# ----------------------------------------------------------------------------------------------- intermediate model
+@dataclass
+class SimulinkLine:
+    """A line from an output port of a block to an input port of another block of the same system.
+
+    The ports are numbered from 1, in the order of the block; `target_port` is `"Reset"` for the reset port of a
+    resettable subsystem (decision 23).
+    """
+    source: str
+    source_port: int | str
+    target: str
+    target_port: int | str
+
+
+@dataclass
+class StartValue:
+    """A start value of the assembly (text, as stored by the assembly) and the type of its port."""
+    value: str
+    type_name: str
+
+
+@dataclass
+class FmuBlock:
+    """An FMU block (`FMUInputMapping` / `FMUOutputMapping` = `Flat`): one port per input and per output variable,
+    in the order of `modelDescription.xml`."""
+    name: str
+    fmu_file: str                       # file name, in the `fmus/` folder of the archive
+    fmi_version: int
+    model_exchange: bool                # Model Exchange mode, otherwise Co-Simulation (decision 8)
+    sample_time: float                  # `FMUSampleTime`: the step of its node (decision 17)
+    inputs: list[str]
+    outputs: list[str]
+    parameters: dict[str, StartValue] = field(default_factory=dict)     # values of the block parameters
+    input_starts: dict[str, StartValue] = field(default_factory=dict)   # start values of connected inputs
+    resettable: bool = False            # placed in a resettable subsystem (decision 23)
+
+
+@dataclass
+class SubsystemBlock:
+    """A subsystem: a sub-container of the assembly (decision 4)."""
+    name: str
+    system: "SimulinkSystem"
+
+
+@dataclass
+class InportBlock:
+    name: str
+    index: int
+
+
+@dataclass
+class OutportBlock:
+    name: str
+    index: int
+
+
+@dataclass
+class ConstantBlock:
+    """The start value of an input that is not connected (decision 21)."""
+    name: str
+    value: StartValue
+
+
+@dataclass
+class TerminatorBlock:
+    """The end of an output that is not connected, or of a dropped port (decision 22)."""
+    name: str
+
+
+Block = FmuBlock | SubsystemBlock | InportBlock | OutportBlock | ConstantBlock | TerminatorBlock
+
+
+@dataclass
+class SimulinkSystem:
+    """The model or a subsystem: its blocks, its lines, and the names of its `Inport` and `Outport` blocks."""
+    name: str
+    sample_time: float
+    blocks: dict[str, Block] = field(default_factory=dict)
+    lines: list[SimulinkLine] = field(default_factory=list)
+    inports: list[str] = field(default_factory=list)
+    outports: list[str] = field(default_factory=list)
+    #: Start value given to an `Inport` that is not connected in the parent: the one of its first target.
+    inport_starts: dict[str, StartValue | None] = field(default_factory=dict)
+
+    def unique_name(self, name: str) -> str:
+        """`name`, or `name 2`, `name 3`... when a block of the system already has it."""
+        candidate, rank = name, 1
+        while candidate in self.blocks:
+            rank += 1
+            candidate = f"{name} {rank}"
+        return candidate
+
+    def add(self, block: Block) -> Block:
+        self.blocks[block.name] = block
+        return block
+
+
+@dataclass
+class SimulinkModel:
+    """The Simulink model of an assembly."""
+    name: str
+    root: SimulinkSystem
+    fixed_step: float                   # the exact GCD of the sample times of the FMU blocks (decision 18)
+    start_time: float | None
+    stop_time: float | None
+    fmu_files: dict[str, Path]          # file name in the archive -> source file
+
+    def systems(self):
+        """The systems of the model, the root first, then the subsystems (depth first)."""
+        stack = [self.root]
+        while stack:
+            system = stack.pop(0)
+            yield system
+            stack[:0] = [block.system for block in system.blocks.values() if isinstance(block, SubsystemBlock)]
+
+
+# ------------------------------------------------------------------------------------------------------- helpers
+def _exact(value: float) -> Fraction:
+    """A step as a fraction, from its shortest decimal representation (`0.3` is 3/10)."""
+    return Fraction(repr(float(value)))
+
+
+def gcd_of_steps(steps: list[float]) -> float:
+    """Greatest common divisor of steps, computed exactly: `0.02` and `0.05` give `0.01` (decision 18)."""
+    fractions = [_exact(step) for step in steps]
+    # gcd(a/b, c/d) = gcd(a, c) / lcm(b, d)
+    return float(Fraction(math.gcd(*(f.numerator for f in fractions)), math.lcm(*(f.denominator for f in fractions))))
+
+
+def matlab_name(name: str) -> str:
+    """A valid MATLAB identifier made from `name` (decision 15): a letter first, then letters, digits or `_`, at most
+    63 characters. `bouncing-ball.fmu` gives `bouncing_ball`."""
+    identifier = re.sub(r"\W", "_", Path(name).stem, flags=re.ASCII)
+    if not identifier or not identifier[0].isalpha():
+        identifier = "model_" + identifier
+    return identifier[:MATLAB_NAME_LENGTH]
+
+
+def reset_input_name(fmu_name: str) -> str:
+    """Name of the exposed reset of an FMU without explicit name, as the builder names it
+    (`FMUContainer.reset_input_name`)."""
+    return f"container.{Path(fmu_name).stem.lower()}.reset"
+
+
+def block_name(name: str) -> str:
+    """Name of the block of an embedded FMU or of a sub-container: its name without `.fmu`."""
+    return name[:-4] if name.lower().endswith(".fmu") else name
+
+
+# ------------------------------------------------------------------------------------------------------ analysis
+@dataclass
+class _Endpoint:
+    """One end of a connection in a system: a block, the index of its port, and what the port is."""
+    block: str
+    port: int | str
+    name: str                           # name of the port, for the messages
+    type_name: str | None               # type of an FMU port, None for a subsystem port
+    start: StartValue | None            # start value of an input, for a `Constant` block
+
+
+class SimulinkExporter:
+    """Analyse an assembly into a `SimulinkModel` (step 1 of `docs/local/simulink_export.md`).
+
+    Args:
+        assembly (Assembly): The assembly; its FMUs are read from `assembly.fmu_directory`.
+
+    Raises:
+        AssemblyError: If the assembly cannot be exported (see `analyse`).
+    """
+
+    def __init__(self, assembly: Assembly):
+        if assembly.root is None:
+            raise AssemblyError("The assembly is empty: nothing to export to Simulink.")
+        self.assembly = assembly
+        self.fmu_directory = Path(assembly.fmu_directory)
+        self._analysed: dict[Path, EmbeddedFMU] = {}    # one analysis per FMU file, shared by its instances
+        self.fmu_files: dict[str, Path] = {}
+        self.sample_times: list[float] = []
+
+    # --------------------------------------------------------------------------------------------- public API
+    def analyse(self) -> SimulinkModel:
+        """Build the intermediate model of the assembly.
+
+        Raises:
+            AssemblyError: If a node uses `ts_multiplier` (decision 7), if a step cannot be found (decision 13), if a
+                port does not exist or is used against its causality, or if an FMU cannot be read.
+        """
+        root = self.assembly.root
+        assert root is not None     # checked by the constructor
+        system = self._system(root)
+        return SimulinkModel(name=matlab_name(root.name), root=system, fixed_step=gcd_of_steps(self.sample_times),
+                             start_time=root.start_time, stop_time=root.stop_time, fmu_files=self.fmu_files)
+
+    # ------------------------------------------------------------------------------------------------- nodes
+    def _check_options(self, node: AssemblyNode):
+        """Refuse `ts_multiplier`, warn about the options that the export ignores (decisions 5, 7, 10, 26)."""
+        if node.ts_multiplier:
+            raise AssemblyError(f"'{node.name}': the option ts_multiplier cannot be exported to Simulink.")
+        for option in ("mt", "profiling", "sequential"):
+            if getattr(node, option):
+                logger.warning(f"'{node.name}': the option {option} is ignored by the Simulink export.")
+        implicit = [option for option in ("auto_link", "auto_input", "auto_output", "auto_parameter", "auto_local")
+                    if getattr(node, option)]
+        if implicit:
+            logger.warning(f"'{node.name}': the implicit links and ports ({', '.join(implicit)}) are not exported to "
+                           f"Simulink: only the explicit ones are.")
+
+    def _embedded(self, node: AssemblyNode, fmu_name: str) -> EmbeddedFMU:
+        """The analysis of an embedded FMU, shared by the instances of its file; its file is added to the archive."""
+        path = (self.fmu_directory / node.fmu_path(fmu_name)).resolve()
+        if path not in self._analysed:
+            try:
+                self._analysed[path] = EmbeddedFMU(path)
+            except (FMUContainerError, OSError) as error:
+                raise AssemblyError(f"Cannot read '{node.fmu_path(fmu_name)}': {error}") from error
+            file_name = path.name
+            rank = 1
+            while file_name in self.fmu_files and self.fmu_files[file_name] != path:
+                rank += 1
+                file_name = f"{path.stem}-{rank}{path.suffix}"
+            self.fmu_files[file_name] = path
+        return self._analysed[path]
+
+    def _file_name(self, fmu: EmbeddedFMU) -> str:
+        path = Path(fmu.fmu.fmu_filename).resolve()
+        return next(name for name, source in self.fmu_files.items() if source == path)
+
+    def _step(self, node: AssemblyNode, fmus: dict[str, EmbeddedFMU], children: dict[str, SimulinkSystem]) -> float:
+        """Step of the node (decision 17): its `step_size`, otherwise deduced as `make_fmu` does (decision 13)."""
+        if node.step_size:
+            return node.step_size
+        steps = [(fmu.step_size, not fmu.imposes_step_size) for fmu in fmus.values() if fmu.step_size]
+        steps += [(child.sample_time, True) for child in children.values()]
+        step = deduce_step_size(steps)
+        if step is None:
+            raise AssemblyError(f"'{node.name}': no step size, neither in the assembly nor in its FMUs.")
+        return step
+
+    def _system(self, node: AssemblyNode) -> SimulinkSystem:
+        """The system of a node, its sub-containers first."""
+        self._check_options(node)
+        children = {name: self._system(child) for name, child in node.children.items()}
+        fmus = {name: self._embedded(node, name) for name in node.fmu_names_list}
+        system = SimulinkSystem(block_name(node.name), self._step(node, fmus, children))
+        self.sample_times.append(system.sample_time)
+
+        # Blocks of the embedded FMUs and of the sub-containers
+        names: dict[str, str] = {}      # name in the assembly -> name of the block
+        for name, fmu in fmus.items():
+            ports = [port for port in fmu.ports.values() if not port.is_fmi2_aggregate]
+            names[name] = system.unique_name(block_name(name))
+            system.add(FmuBlock(names[name], self._file_name(fmu), fmu.fmi_version or 0, fmu.is_me, system.sample_time,
+                                inputs=[port.name for port in ports if port.causality == "input"],
+                                outputs=[port.name for port in ports if port.causality == "output"]))
+        for name, child in children.items():
+            names[name] = system.unique_name(block_name(name))
+            system.add(SubsystemBlock(names[name], child))
+
+        connected_inputs: set[tuple[str, int | str]] = set()
+        connected_outputs: set[tuple[str, int | str]] = set()
+
+        def endpoint(port: Port, direction: str) -> _Endpoint:
+            return self._endpoint(node, fmus, children, names, port, direction)
+
+        def connect(source: _Endpoint, target: _Endpoint):
+            system.lines.append(SimulinkLine(source.block, source.port, target.block, target.port))
+            connected_outputs.add((source.block, source.port))
+            connected_inputs.add((target.block, target.port))
+
+        # Exposed inputs: one Inport per name, a line to each of its targets (decision 4)
+        inports: dict[str, str] = {}
+        for port, exposed in node.input_ports.items():
+            target = endpoint(port, "input")
+            exposed = exposed or (reset_input_name(port.fmu_name) if target.port == "Reset" else port.port_name)
+            if exposed not in inports:
+                inports[exposed] = system.unique_name(exposed)
+                system.add(InportBlock(inports[exposed], len(system.inports) + 1))
+                system.inports.append(exposed)
+                system.inport_starts[exposed] = target.start
+            system.lines.append(SimulinkLine(inports[exposed], 1, target.block, target.port))
+            connected_inputs.add((target.block, target.port))
+
+        # Links, the terminals expanded as the builder does (decision 24)
+        for link in node.links:
+            for from_port, to_port in self._expand(node, fmus, link.from_port, link.to_port):
+                self._check_input_clocks(node, fmus, from_port, to_port)
+                source, target = endpoint(from_port, "output"), endpoint(to_port, "input")
+                connect(source, target)
+
+        # Exposed outputs
+        for port, exposed in node.output_ports.items():
+            source = endpoint(port, "output")
+            exposed = exposed or port.port_name
+            name = system.unique_name(exposed)
+            system.add(OutportBlock(name, len(system.outports) + 1))
+            system.outports.append(exposed)
+            system.lines.append(SimulinkLine(source.block, source.port, name, 1))
+            connected_outputs.add((source.block, source.port))
+
+        # Dropped ports: a Terminator (decision 22)
+        for port in node.drop_ports:
+            source = endpoint(port, "output")
+            if (source.block, source.port) not in connected_outputs:
+                self._terminate(system, source, connected_outputs)
+
+        self._start_values(node, fmus, children, names, system, endpoint, connected_inputs)
+        self._resets(node, fmus, names, system, connected_inputs)
+        self._unconnected(node, fmus, children, names, system, connected_inputs, connected_outputs)
+        return system
+
+    # ------------------------------------------------------------------------------------------------- ports
+    def _endpoint(self, node: AssemblyNode, fmus: dict[str, EmbeddedFMU], children: dict[str, SimulinkSystem],
+                  names: dict[str, str], port: Port, direction: str) -> _Endpoint:
+        """The block and the port index of `port`, used as an `input` or an `output` of a connection."""
+        if port.fmu_name in fmus:
+            fmu = fmus[port.fmu_name]
+            node_block = names[port.fmu_name]
+            if direction == "input" and node.reset_ports and port.port_name == FMUContainer.RESET_PORT:
+                return _Endpoint(node_block, "Reset", port.port_name, "boolean", None)
+            fmu_port = fmu.ports.get(port.port_name)
+            if fmu_port is None or fmu_port.is_fmi2_aggregate:
+                raise AssemblyError(f"'{node.name}': port '{port}' does not exist.")
+            if fmu_port.causality != direction:
+                raise AssemblyError(f"'{node.name}': port '{port}' has the causality '{fmu_port.causality}': it "
+                                    f"cannot be used as an {direction}.")
+            ports = [p for p in fmu.ports.values() if not p.is_fmi2_aggregate and p.causality == direction]
+            index = next(i for i, p in enumerate(ports, start=1) if p.name == port.port_name)
+            start = self._fmu_start(node, port, fmu_port) if direction == "input" else None
+            return _Endpoint(node_block, index, str(port), fmu_port.type_name, start)
+        if port.fmu_name in children:
+            child = children[port.fmu_name]
+            exposed = child.inports if direction == "input" else child.outports
+            if port.port_name not in exposed:
+                raise AssemblyError(f"'{node.name}': port '{port}' is not an {direction} of the sub-container.")
+            start = child.inport_starts.get(port.port_name) if direction == "input" else None
+            return _Endpoint(names[port.fmu_name], exposed.index(port.port_name) + 1, str(port), None, start)
+        raise AssemblyError(f"'{node.name}': '{port.fmu_name}' is neither an FMU nor a sub-container of the node.")
+
+    @staticmethod
+    def _fmu_start(node: AssemblyNode, port: Port, fmu_port: EmbeddedFMUPort) -> StartValue | None:
+        """Start value of an FMU input: the one of the assembly, otherwise the one of the FMU."""
+        value = node.start_values.get(port, fmu_port.start_value)
+        return None if value is None else StartValue(str(value), fmu_port.type_name)
+
+    def _expand(self, node: AssemblyNode, fmus: dict[str, EmbeddedFMU], from_port: Port, to_port: Port):
+        """The port-to-port links of a link: itself, or the links of two connected terminals (decision 24)."""
+        fmu_from, fmu_to = fmus.get(from_port.fmu_name), fmus.get(to_port.fmu_name)
+        if fmu_from is None or fmu_to is None or from_port.port_name not in fmu_from.terminals \
+                or to_port.port_name not in fmu_to.terminals:
+            return [self._oriented(fmus, from_port, to_port)]
+        terminal1, terminal2 = fmu_from.terminals[from_port.port_name], fmu_to.terminals[to_port.port_name]
+        if not terminal1 == terminal2:
+            raise AssemblyError(f"'{node.name}': the terminals '{from_port}' and '{to_port}' are not compatible.")
+        try:
+            pairs = terminal1.connect(terminal2)
+        except TerminalError as error:
+            raise AssemblyError(f"'{node.name}': cannot plug the terminals '{from_port}' and '{to_port}': "
+                                f"{error}") from error
+        self._terminal_parameters(node, fmus, from_port.fmu_name, to_port.fmu_name,
+                                  terminal1.connected_parameters(terminal2))
+        return [self._oriented(fmus, Port(from_port.fmu_name, a), Port(to_port.fmu_name, b)) for a, b in pairs]
+
+    @staticmethod
+    def _oriented(fmus: dict[str, EmbeddedFMU], from_port: Port, to_port: Port) -> tuple[Port, Port]:
+        """A link from an output to an input: inverted when it goes from an input to an output, as the builder
+        accepts."""
+        def causality(port: Port) -> str | None:
+            fmu = fmus.get(port.fmu_name)
+            fmu_port = fmu.ports.get(port.port_name) if fmu else None
+            return fmu_port.causality if fmu_port else None
+        if causality(from_port) == "input" and causality(to_port) == "output":
+            return to_port, from_port
+        return from_port, to_port
+
+    @staticmethod
+    def _check_input_clocks(node: AssemblyNode, fmus: dict[str, EmbeddedFMU], from_port: Port, to_port: Port):
+        """Refuse a link between two input clocks (FMI-LS-BUS): the container schedules them without source, a line
+        of Simulink goes from an output to an input (decision 27)."""
+        ports = [fmus[port.fmu_name].ports.get(port.port_name) if port.fmu_name in fmus else None
+                 for port in (from_port, to_port)]
+        if all(port is not None and port.causality == "input" and port.type_name == "clock" for port in ports):
+            raise AssemblyError(f"'{node.name}': the input clocks '{from_port}' and '{to_port}' are linked together: "
+                                f"such a link cannot be exported to Simulink.")
+
+    @staticmethod
+    def _terminal_parameters(node: AssemblyNode, fmus: dict[str, EmbeddedFMU], fmu1: str, fmu2: str, pairs):
+        """The parameters of a Configuration terminal take the value of the connected Bus Simulation, as the
+        builder does (`apply_terminal_parameters`), unless the assembly gives them a start value."""
+        for name1, name2 in pairs:
+            port1, port2 = fmus[fmu1].ports[name1], fmus[fmu2].ports[name2]
+            if port1.causality == "parameter" and port2.causality != "parameter":
+                target, source = Port(fmu1, name1), port2
+            elif port2.causality == "parameter" and port1.causality != "parameter":
+                target, source = Port(fmu2, name2), port1
+            else:
+                continue
+            if target not in node.start_values and source.start_value is not None:
+                node.start_values[target] = source.start_value
+
+    # ---------------------------------------------------------------------------------------- extra blocks
+    @staticmethod
+    def _terminate(system: SimulinkSystem, source: _Endpoint, connected_outputs: set):
+        name = system.unique_name(f"{source.block}.{source.name.split('/', 1)[-1]} end")
+        system.add(TerminatorBlock(name))
+        system.lines.append(SimulinkLine(source.block, source.port, name, 1))
+        connected_outputs.add((source.block, source.port))
+
+    def _start_values(self, node: AssemblyNode, fmus: dict[str, EmbeddedFMU], children: dict[str, SimulinkSystem],
+                      names: dict[str, str], system: SimulinkSystem, endpoint, connected_inputs: set):
+        """Start values of the assembly: values of the block parameters, start values of the connected inputs; those
+        of the unconnected inputs go to their `Constant` block (decision 21)."""
+        for port, value in node.start_values.items():
+            if port.fmu_name in children:
+                continue    # an input of a sub-container: its Constant block, when it is not connected
+            fmu = fmus.get(port.fmu_name)
+            fmu_port = fmu.ports.get(port.port_name) if fmu else None
+            if fmu_port is None:
+                raise AssemblyError(f"'{node.name}': the start value of '{port}' is given to a port that does not "
+                                    f"exist.")
+            block = system.blocks[names[port.fmu_name]]
+            assert isinstance(block, FmuBlock)
+            if fmu_port.causality in ("parameter", "structuralParameter"):
+                block.parameters[port.port_name] = StartValue(str(value), fmu_port.type_name)
+            elif fmu_port.causality == "input":
+                target = endpoint(port, "input")
+                if (target.block, target.port) in connected_inputs:
+                    block.input_starts[port.port_name] = StartValue(str(value), fmu_port.type_name)
+            else:
+                logger.warning(f"'{node.name}': the start value of '{port}' ({fmu_port.causality}) is not exported "
+                               f"to Simulink.")
+
+    @staticmethod
+    def _resets(node: AssemblyNode, fmus: dict[str, EmbeddedFMU], names: dict[str, str], system: SimulinkSystem,
+                connected_inputs: set):
+        """`reset_ports`: an FMU whose reset is driven is placed in a resettable subsystem (decision 23)."""
+        if not node.reset_ports:
+            return
+        for name in fmus:
+            block = system.blocks[names[name]]
+            assert isinstance(block, FmuBlock)
+            if (block.name, "Reset") in connected_inputs:
+                block.resettable = True
+            else:
+                logger.warning(f"Reset of FMU '{name}' is neither linked nor exposed: the FMU will never be reset.")
+
+    def _unconnected(self, node: AssemblyNode, fmus: dict[str, EmbeddedFMU], children: dict[str, SimulinkSystem],
+                     names: dict[str, str], system: SimulinkSystem, connected_inputs: set, connected_outputs: set):
+        """A `Constant` block on each unconnected input, a `Terminator` on each unconnected output (decisions 21,
+        22)."""
+        for name in [*fmus, *children]:
+            block = system.blocks[names[name]]
+            if isinstance(block, FmuBlock):
+                fmu = fmus[name]
+                inputs = [(index, fmu.ports[port]) for index, port in enumerate(block.inputs, start=1)]
+                for index, fmu_port in inputs:
+                    if (block.name, index) in connected_inputs or fmu_port.type_name in NO_CONSTANT_TYPES:
+                        continue
+                    start = self._fmu_start(node, Port(name, fmu_port.name), fmu_port)
+                    self._constant(system, block.name, index, fmu_port.name,
+                                   start or StartValue("0", fmu_port.type_name))
+                outputs = block.outputs
+            else:
+                assert isinstance(block, SubsystemBlock)
+                child = block.system
+                for index, exposed in enumerate(child.inports, start=1):
+                    if (block.name, index) in connected_inputs:
+                        continue
+                    inner = child.inport_starts.get(exposed)
+                    given = node.start_values.get(Port(name, exposed))
+                    value = inner if given is None else StartValue(str(given), inner.type_name if inner else "real64")
+                    if value is not None and value.type_name not in NO_CONSTANT_TYPES:
+                        self._constant(system, block.name, index, exposed, value)
+                outputs = child.outports
+            for index, port_name in enumerate(outputs, start=1):
+                if (block.name, index) not in connected_outputs:
+                    self._terminate(system, _Endpoint(block.name, index, port_name, None, None), connected_outputs)
+
+    @staticmethod
+    def _constant(system: SimulinkSystem, block: str, index: int, port_name: str, value: StartValue):
+        name = system.unique_name(f"{block}.{port_name} start")
+        system.add(ConstantBlock(name, value))
+        system.lines.append(SimulinkLine(name, 1, block, index))

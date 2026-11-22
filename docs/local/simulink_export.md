@@ -1,6 +1,6 @@
 # Export of an assembly to Simulink
 
-**Status**: decisions 1 to 26 taken (22 November 2026), step 1 to start — **Branch**: `feature/simulink-export`,
+**Status**: decisions 1 to 27 taken (22 November 2026), step 1 done — **Branch**: `feature/simulink-export`,
 rebased on `integration` (`0f8db8e`) — **Roadmap**: "Export to Simulink"
 
 ## Context
@@ -122,6 +122,10 @@ points of 2026-10-17, with the results of the importer comparison study
     The geometry read from SSP files (`fmu_geometry`) and the architecture wires are not exported (grid layout).
 26. **`mt_threshold`**: ignored with `mt` (decision 10). The messages of the export follow
     `docs/developer/logging.md`.
+
+27. **Input clocks linked together** (FMI-LS-BUS, taken at step 1): the container schedules them without
+    source, and a line of Simulink goes from an output to an input: the export fails with an error naming the two
+    ports.
 
 ### Closed open points (2026-10-17)
 
